@@ -1,14 +1,12 @@
 services:
   - type: web
-    name: karanka-deriv-v7
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    name: karanka-deriv-bot
+    env: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: PORT
-        value: 10000
-      - key: PYTHON_VERSION
-        value: 3.11.0
-    autoDeploy: true
+        value: 5000
     healthCheckPath: /
-    plan: free
+    autoDeploy: true
+    domains:
+      - karanka-deriv.onrender.com
