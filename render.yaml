@@ -1,12 +1,16 @@
 services:
   - type: web
     name: karanka-deriv-bot
-    env: docker
-    dockerfilePath: ./Dockerfile
+    env: python
+    plan: free
+    region: oregon  # or singapore, frankfurt, etc
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
     envVars:
-      - key: PORT
-        value: 5000
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.8
     healthCheckPath: /
     autoDeploy: true
-    domains:
-      - karanka-deriv.onrender.com
