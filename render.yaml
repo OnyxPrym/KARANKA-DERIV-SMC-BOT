@@ -1,13 +1,13 @@
 services:
   - type: web
     name: karanka-deriv-bot
-    env: docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
     envVars:
       - key: SECRET_KEY
         generateValue: true
       - key: PORT
         value: 5000
-      - key: PYTHONUNBUFFERED
-        value: 1
+      - key: PYTHON_VERSION
+        value: 3.10.12
