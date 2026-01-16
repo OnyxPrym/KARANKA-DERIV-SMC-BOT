@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """
 ================================================================================
-🎯 KARANKA MULTIVERSE V7 - DERIV REAL TRADING BOT
+🎯 KARANKA MULTIVERSE V8 - DERIV SMART SMC TRADING BOT
 ================================================================================
-• REAL DERIV API CONNECTION WITH OAUTH2 FOR PUBLIC USE
-• REAL DEMO/REAL ACCOUNT DETECTION & SELECTION
-• REAL TRADING WITH USER-CONTROLLED $ AMOUNTS
-• FULL SMC STRATEGY OPTIMIZED FOR DERIV MARKETS
-• MOBILE-FRIENDLY BLACK & GOLD WEB APP
-• REAL-TIME TRADE TRACKING (WINS/LOSSES)
-• RENDER.COM DEPLOYMENT READY WITH OAUTH2
+• REAL DERIV TRADING WITH SEPARATE STRATEGIES
+• INDICES: FAST LIQUIDITY-BASED STRATEGY
+• FOREX/BTC: YOUR ORIGINAL SMC STRATEGY
+• ALL MARKETS INCLUDED & USER-SELECTABLE
+• REAL-TIME EXECUTION & PRICE UPDATES
 ================================================================================
 """
 
@@ -29,7 +27,7 @@ import numpy as np
 import pandas as pd
 import requests
 import websocket
-from flask import Flask, render_template_string, jsonify, request, session, redirect, url_for, Response
+from flask import Flask, render_template_string, jsonify, request, session, redirect, url_for
 from flask_cors import CORS
 
 # ============ SETUP LOGGING ============
@@ -51,28 +49,39 @@ DERIV_OAUTH_CONFIG = {
     "response_type": "code"
 }
 
-# ============ DERIV MARKET CONFIGS ============
+# ============ COMPLETE DERIV MARKETS ============
 DERIV_MARKETS = {
-    "R_10": {"name": "Volatility 10 Index", "pip": 0.001, "volatility": 10, "category": "Volatility"},
-    "R_25": {"name": "Volatility 25 Index", "pip": 0.001, "volatility": 25, "category": "Volatility"},
-    "R_50": {"name": "Volatility 50 Index", "pip": 0.001, "volatility": 50, "category": "Volatility"},
-    "R_75": {"name": "Volatility 75 Index", "pip": 0.001, "volatility": 75, "category": "Volatility"},
-    "R_100": {"name": "Volatility 100 Index", "pip": 0.001, "volatility": 100, "category": "Volatility"},
-    "CRASH_300": {"name": "Crash 300 Index", "pip": 0.01, "volatility": 300, "category": "Crash/Boom"},
-    "CRASH_500": {"name": "Crash 500 Index", "pip": 0.01, "volatility": 500, "category": "Crash/Boom"},
-    "CRASH_1000": {"name": "Crash 1000 Index", "pip": 0.01, "volatility": 1000, "category": "Crash/Boom"},
-    "BOOM_300": {"name": "Boom 300 Index", "pip": 0.01, "volatility": 300, "category": "Crash/Boom"},
-    "BOOM_500": {"name": "Boom 500 Index", "pip": 0.01, "volatility": 500, "category": "Crash/Boom"},
-    "BOOM_1000": {"name": "Boom 1000 Index", "pip": 0.01, "volatility": 1000, "category": "Crash/Boom"},
+    # Forex Pairs (4)
+    "frxEURUSD": {"name": "EUR/USD", "pip": 0.0001, "category": "Forex", "strategy_type": "forex"},
+    "frxGBPUSD": {"name": "GBP/USD", "pip": 0.0001, "category": "Forex", "strategy_type": "forex"},
+    "frxUSDJPY": {"name": "USD/JPY", "pip": 0.01, "category": "Forex", "strategy_type": "forex"},
+    "frxAUDUSD": {"name": "AUD/USD", "pip": 0.0001, "category": "Forex", "strategy_type": "forex"},
+    
+    # Volatility Indices (4)
+    "R_25": {"name": "Volatility 25 Index", "pip": 0.001, "category": "Volatility", "strategy_type": "volatility"},
+    "R_50": {"name": "Volatility 50 Index", "pip": 0.001, "category": "Volatility", "strategy_type": "volatility"},
+    "R_75": {"name": "Volatility 75 Index", "pip": 0.001, "category": "Volatility", "strategy_type": "volatility"},
+    "R_100": {"name": "Volatility 100 Index", "pip": 0.001, "category": "Volatility", "strategy_type": "volatility"},
+    
+    # Crash Indices (2)
+    "CRASH_300": {"name": "Crash 300 Index", "pip": 0.01, "category": "Crash/Boom", "strategy_type": "crash"},
+    "CRASH_500": {"name": "Crash 500 Index", "pip": 0.01, "category": "Crash/Boom", "strategy_type": "crash"},
+    
+    # Boom Indices (2)
+    "BOOM_300": {"name": "Boom 300 Index", "pip": 0.01, "category": "Crash/Boom", "strategy_type": "boom"},
+    "BOOM_500": {"name": "Boom 500 Index", "pip": 0.01, "category": "Crash/Boom", "strategy_type": "boom"},
+    
+    # Crypto (BTC)
+    "cryBTCUSD": {"name": "BTC/USD", "pip": 1.0, "category": "Crypto", "strategy_type": "forex"},
 }
 
-# ============ SESSION CONFIGS ============
-SESSIONS = {
-    "Asian": {"hours": (0, 9), "trades_hour": 3, "risk": 0.8},
-    "London": {"hours": (8, 17), "trades_hour": 5, "risk": 1.0},
-    "NewYork": {"hours": (13, 22), "trades_hour": 6, "risk": 1.2},
-    "Overlap": {"hours": (13, 17), "trades_hour": 8, "risk": 1.5},
-    "Night": {"hours": (22, 24), "trades_hour": 2, "risk": 0.7},
+# ============ TRADING SESSIONS ============
+TRADING_SESSIONS = {
+    "Asian": {"hours": (0, 9), "vol_multiplier": 0.8},
+    "London": {"hours": (8, 17), "vol_multiplier": 1.0},
+    "NewYork": {"hours": (13, 22), "vol_multiplier": 1.2},
+    "Overlap": {"hours": (13, 17), "vol_multiplier": 1.5},
+    "Night": {"hours": (22, 24), "vol_multiplier": 0.7},
 }
 
 # ============ DATABASE ============
@@ -94,13 +103,13 @@ class UserDatabase:
                 'password_hash': password_hash,
                 'created_at': datetime.now().isoformat(),
                 'settings': {
-                    'enabled_markets': ['R_75', 'R_100'],
+                    'enabled_markets': ['R_75', 'R_100', 'frxEURUSD', 'frxGBPUSD'],
                     'min_confidence': 65,
                     'trade_amount': 1.0,
                     'max_concurrent_trades': 3,
-                    'max_daily_trades': 30,
-                    'max_hourly_trades': 10,
-                    'dry_run': True,
+                    'max_daily_trades': 50,
+                    'max_hourly_trades': 15,
+                    'dry_run': False,  # REAL TRADING BY DEFAULT
                     'risk_level': 1.0,
                     'session_aware': True,
                     'volatility_filter': True
@@ -148,189 +157,330 @@ class UserDatabase:
                 return False
             
             user = self.users[username]
-            # Deep update for nested settings
             if 'settings' in updates:
                 user['settings'].update(updates['settings'])
             else:
-                for key, value in updates.items():
-                    if key in user and isinstance(user[key], dict) and isinstance(value, dict):
-                        user[key].update(value)
-                    else:
-                        user[key] = value
-            
+                user.update(updates)
             return True
         except Exception as e:
             logger.error(f"Error updating user: {e}")
             return False
 
-# ============ SMC ANALYZER ============
-class DerivSMCAnalyzer:
-    """Advanced SMC Strategy Optimized for Deriv Markets"""
+# ============ DUAL STRATEGY ANALYZER ============
+class DualStrategySMCAnalyzer:
+    """Dual SMC Strategy: Fast logic for indices, Original for Forex/BTC"""
     
     def __init__(self):
         self.memory = defaultdict(lambda: deque(maxlen=100))
-        self.session_analysis = {}
-        self.volatility_cache = {}
-        logger.info("Advanced SMC Engine initialized")
+        self.prices = {}
+        self.last_analysis = {}
+        logger.info("Dual Strategy SMC Engine initialized")
     
-    def analyze_market(self, df: pd.DataFrame, symbol: str) -> Dict:
-        """Complete SMC Analysis for Deriv Volatility Indices"""
+    def analyze_market(self, df: pd.DataFrame, symbol: str, current_price: float) -> Dict:
+        """Analyze market with appropriate strategy"""
         try:
             if df is None or len(df) < 20:
-                return {
-                    "confidence": 0, 
-                    "signal": "NEUTRAL", 
-                    "strength": 0,
-                    "price": 0,
-                    "structure_score": 0,
-                    "order_block_score": 0,
-                    "fvg_score": 0,
-                    "liquidity_score": 0,
-                    "volatility": 0,
-                    "timestamp": datetime.now().isoformat()
-                }
+                return self._neutral_signal(symbol)
             
-            # Prepare data
-            df = self._prepare_data(df)
+            market_info = DERIV_MARKETS.get(symbol, {})
+            strategy_type = market_info.get('strategy_type', 'forex')
             
-            # Get current price
-            current_price = float(df['close'].iloc[-1])
+            # Store current price
+            self.prices[symbol] = current_price
             
-            # 1. MARKET STRUCTURE (40 points)
-            structure_score = self._analyze_market_structure(df)
-            
-            # 2. ORDER BLOCKS (30 points)
-            order_block_score = self._analyze_order_blocks(df)
-            
-            # 3. FAIR VALUE GAPS (15 points)
-            fvg_score = self._analyze_fair_value_gaps(df)
-            
-            # 4. LIQUIDITY GRABS (15 points)
-            liquidity_score = self._analyze_liquidity(df)
-            
-            # Total confidence (0-100)
-            total_confidence = 50 + structure_score + order_block_score + fvg_score + liquidity_score
-            total_confidence = max(0, min(100, total_confidence))
-            
-            # Determine signal
-            signal = "NEUTRAL"
-            if total_confidence >= 65:
-                signal = "BUY" if structure_score > 0 else "SELL"
-            elif total_confidence <= 35:
-                signal = "SELL" if structure_score < 0 else "BUY"
-            
-            analysis = {
-                "confidence": int(total_confidence),
-                "signal": signal,
-                "strength": min(95, abs(total_confidence - 50) * 2),
-                "price": current_price,
-                "structure_score": structure_score,
-                "order_block_score": order_block_score,
-                "fvg_score": fvg_score,
-                "liquidity_score": liquidity_score,
-                "volatility": self._calculate_volatility(df),
-                "timestamp": datetime.now().isoformat()
-            }
+            # Choose strategy based on market type
+            if strategy_type in ['volatility', 'crash', 'boom']:
+                # FAST LOGIC FOR INDICES
+                analysis = self._fast_indices_strategy(df, symbol, current_price)
+            else:
+                # YOUR ORIGINAL STRATEGY FOR FOREX/BTC
+                analysis = self._original_forex_strategy(df, symbol, current_price)
             
             # Store in memory
             self.memory[symbol].append(analysis)
+            self.last_analysis[symbol] = analysis
             
             return analysis
             
         except Exception as e:
             logger.error(f"SMC analysis error for {symbol}: {e}")
-            return {"confidence": 0, "signal": "NEUTRAL", "strength": 0}
+            return self._neutral_signal(symbol)
+    
+    def _fast_indices_strategy(self, df: pd.DataFrame, symbol: str, current_price: float) -> Dict:
+        """FAST LIQUIDITY-BASED STRATEGY FOR INDICES"""
+        
+        df = self._prepare_data(df)
+        confidence = 50
+        signal = "NEUTRAL"
+        signals = []
+        
+        # 1. LIQUIDITY SWEEP DETECTION (40 points)
+        sweep_signal = self._detect_liquidity_sweep(df, symbol)
+        if sweep_signal:
+            confidence += 40
+            signal = sweep_signal['direction']
+            signals.append(f"🎯 {sweep_signal['type']}")
+        
+        # 2. DISPLACEMENT DETECTION (30 points)
+        displacement = self._detect_displacement(df, symbol)
+        if displacement['valid']:
+            if signal == "NEUTRAL":
+                signal = 'BUY' if displacement['direction'] == 'UP' else 'SELL'
+                confidence += 30
+            elif signal == displacement['direction']:
+                confidence += 25  # Confirming signal
+            signals.append(f"📈 Displacement")
+        
+        # 3. QUICK FVG DETECTION (20 points)
+        fvg = self._find_quick_fvg(df, symbol, current_price)
+        if fvg and fvg['type'].lower() == signal.lower():
+            confidence += 20
+            signals.append(f"⚡ Quick FVG")
+        
+        # 4. VOLATILITY ADJUSTMENT
+        volatility = self._calculate_volatility(df)
+        if volatility > 50 and signal != "NEUTRAL":
+            confidence += 10  # Bonus for high volatility
+        
+        # Cap confidence
+        confidence = min(95, max(50, confidence))
+        
+        return {
+            "confidence": int(confidence),
+            "signal": signal,
+            "strength": min(95, abs(confidence - 50) * 2),
+            "price": current_price,
+            "signals": signals,
+            "volatility": volatility,
+            "timestamp": datetime.now().isoformat(),
+            "strategy": "FAST_INDICES"
+        }
+    
+    def _original_forex_strategy(self, df: pd.DataFrame, symbol: str, current_price: float) -> Dict:
+        """YOUR ORIGINAL SMC STRATEGY FOR FOREX/BTC"""
+        
+        df = self._prepare_data(df)
+        
+        # 1. MARKET STRUCTURE (40 points)
+        structure_score = self._analyze_market_structure(df)
+        
+        # 2. ORDER BLOCKS (30 points)
+        order_block_score = self._analyze_order_blocks(df)
+        
+        # 3. FAIR VALUE GAPS (15 points)
+        fvg_score = self._analyze_fair_value_gaps(df)
+        
+        # 4. LIQUIDITY ANALYSIS (15 points)
+        liquidity_score = self._analyze_liquidity(df)
+        
+        # Total confidence
+        total_confidence = 50 + structure_score + order_block_score + fvg_score + liquidity_score
+        total_confidence = max(0, min(100, total_confidence))
+        
+        # Determine signal
+        signal = "NEUTRAL"
+        if total_confidence >= 65:
+            signal = "BUY" if structure_score > 0 else "SELL"
+        elif total_confidence <= 35:
+            signal = "SELL" if structure_score < 0 else "BUY"
+        
+        return {
+            "confidence": int(total_confidence),
+            "signal": signal,
+            "strength": min(95, abs(total_confidence - 50) * 2),
+            "price": current_price,
+            "structure_score": structure_score,
+            "order_block_score": order_block_score,
+            "fvg_score": fvg_score,
+            "liquidity_score": liquidity_score,
+            "volatility": self._calculate_volatility(df),
+            "timestamp": datetime.now().isoformat(),
+            "strategy": "ORIGINAL_FOREX"
+        }
+    
+    def _detect_liquidity_sweep(self, df: pd.DataFrame, symbol: str) -> Optional[Dict]:
+        """Detect liquidity sweeps for indices"""
+        try:
+            # Look for recent swing points
+            lookback = 15 if 'CRASH' in symbol or 'BOOM' in symbol else 25
+            
+            recent_high = df['high'].iloc[-lookback:-1].max()
+            recent_low = df['low'].iloc[-lookback:-1].min()
+            
+            current_candle = df.iloc[-1]
+            previous_candle = df.iloc[-2]
+            
+            # BULLISH SWEEP: Price dips below recent low then closes higher
+            if (current_candle['low'] <= recent_low and
+                current_candle['close'] > recent_low and
+                current_candle['close'] > current_candle['open']):
+                
+                return {
+                    'type': 'BULLISH_SWEEP',
+                    'direction': 'BUY',
+                    'level': recent_low,
+                    'confidence': 85
+                }
+            
+            # BEARISH SWEEP: Price spikes above recent high then closes lower
+            if (current_candle['high'] >= recent_high and
+                current_candle['close'] < recent_high and
+                current_candle['close'] < current_candle['open']):
+                
+                return {
+                    'type': 'BEARISH_SWEEP',
+                    'direction': 'SELL',
+                    'level': recent_high,
+                    'confidence': 85
+                }
+            
+            return None
+        except:
+            return None
+    
+    def _detect_displacement(self, df: pd.DataFrame, symbol: str) -> Dict:
+        """Detect strong price displacement"""
+        try:
+            # Look at last 3 candles
+            closes = df['close'].values[-3:]
+            opens = df['open'].values[-3:]
+            
+            # Calculate total move
+            total_move = abs(closes[-1] - closes[0])
+            
+            # Calculate average candle body strength
+            body_strengths = []
+            for i in range(-3, 0):
+                body = abs(df['close'].iloc[i] - df['open'].iloc[i])
+                total_range = df['high'].iloc[i] - df['low'].iloc[i]
+                if total_range > 0:
+                    body_percent = (body / total_range) * 100
+                    body_strengths.append(body_percent)
+            
+            avg_body_strength = np.mean(body_strengths) if body_strengths else 0
+            
+            # Determine thresholds based on symbol
+            thresholds = {
+                'R_25': 0.05, 'R_50': 0.08, 'R_75': 0.12, 'R_100': 0.15,
+                'CRASH_300': 0.25, 'CRASH_500': 0.30,
+                'BOOM_300': 0.25, 'BOOM_500': 0.30
+            }
+            
+            threshold = thresholds.get(symbol, 0.10)
+            pip_value = DERIV_MARKETS.get(symbol, {}).get('pip', 0.001)
+            pip_move = total_move / pip_value
+            
+            is_valid = (
+                total_move >= threshold and
+                avg_body_strength >= 60 and
+                pip_move >= 8
+            )
+            
+            direction = 'UP' if closes[-1] > closes[0] else 'DOWN'
+            
+            return {
+                'valid': is_valid,
+                'direction': direction,
+                'strength': avg_body_strength,
+                'move_pips': pip_move
+            }
+        except:
+            return {'valid': False, 'direction': 'NONE', 'strength': 0, 'move_pips': 0}
+    
+    def _find_quick_fvg(self, df: pd.DataFrame, symbol: str, current_price: float) -> Optional[Dict]:
+        """Find recent FVGs"""
+        try:
+            for i in range(len(df)-5, len(df)-2):
+                c1 = df.iloc[i]
+                c3 = df.iloc[i+2]
+                
+                # Bullish FVG
+                if c1['high'] < c3['low']:
+                    zone_low = c1['high']
+                    zone_high = c3['low']
+                    
+                    if zone_low <= current_price <= zone_high:
+                        return {'type': 'BULLISH', 'zone': (zone_low, zone_high)}
+                
+                # Bearish FVG
+                elif c1['low'] > c3['high']:
+                    zone_low = c3['high']
+                    zone_high = c1['low']
+                    
+                    if zone_low <= current_price <= zone_high:
+                        return {'type': 'BEARISH', 'zone': (zone_low, zone_high)}
+            
+            return None
+        except:
+            return None
     
     def _prepare_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Prepare data for SMC analysis"""
-        # Calculate indicators
+        """Prepare data for analysis"""
         df['ema_20'] = df['close'].ewm(span=20, adjust=False).mean()
         df['ema_50'] = df['close'].ewm(span=50, adjust=False).mean()
-        
-        # Market structure
         df['higher_high'] = (df['high'] > df['high'].shift(1))
         df['lower_low'] = (df['low'] < df['low'].shift(1))
-        
         return df
     
     def _analyze_market_structure(self, df: pd.DataFrame) -> float:
-        """Analyze market structure"""
+        """Original market structure analysis"""
         try:
             score = 0
-            
-            # Trend direction
             if df['ema_20'].iloc[-1] > df['ema_50'].iloc[-1]:
-                score += 15  # Uptrend
+                score += 15
             else:
-                score -= 15  # Downtrend
+                score -= 15
             
-            # Market structure breaks
             recent_higher_highs = df['higher_high'].tail(5).sum()
             recent_lower_lows = df['lower_low'].tail(5).sum()
             
             if recent_higher_highs >= 2:
-                score += 15  # Strong uptrend structure
+                score += 15
             elif recent_lower_lows >= 2:
-                score -= 15  # Strong downtrend structure
+                score -= 15
             
-            return score / 40 * 100  # Normalize
-            
-        except Exception as e:
-            logger.error(f"Structure analysis error: {e}")
+            return score / 40 * 100
+        except:
             return 0
     
     def _analyze_order_blocks(self, df: pd.DataFrame) -> float:
-        """Find and analyze order blocks"""
+        """Original order block analysis"""
         try:
             score = 0
-            current_price = df['close'].iloc[-1]
-            
-            # Simple order block detection
             for i in range(len(df)-5, len(df)):
-                # Bullish OB: strong bear candle followed by bullish reaction
                 if i > 0 and df['close'].iloc[i] < df['open'].iloc[i]:
                     if df['close'].iloc[i+1] > df['open'].iloc[i+1]:
                         score += 5
-                
-                # Bearish OB: strong bull candle followed by bearish reaction
                 if i > 0 and df['close'].iloc[i] > df['open'].iloc[i]:
                     if df['close'].iloc[i+1] < df['open'].iloc[i+1]:
                         score -= 5
-            
             return max(-15, min(15, score))
         except:
             return 0
     
     def _analyze_fair_value_gaps(self, df: pd.DataFrame) -> float:
-        """Analyze Fair Value Gaps"""
+        """Original FVG analysis"""
         try:
             score = 0
-            
             for i in range(2, len(df)-1):
-                # Bullish FVG
                 if df['low'].iloc[i] > df['high'].iloc[i-1]:
                     score += 2
-                # Bearish FVG
                 elif df['high'].iloc[i] < df['low'].iloc[i-1]:
                     score -= 2
-            
             return max(-7.5, min(7.5, score))
         except:
             return 0
     
     def _analyze_liquidity(self, df: pd.DataFrame) -> float:
-        """Analyze liquidity levels"""
+        """Original liquidity analysis"""
         try:
             score = 0
             current_price = df['close'].iloc[-1]
-            
-            # Simple liquidity detection near price
             for i in range(len(df)-10, len(df)):
                 if abs(df['high'].iloc[i] - current_price) < (df['high'].iloc[i] - df['low'].iloc[i]) * 0.1:
                     score -= 3
                 if abs(df['low'].iloc[i] - current_price) < (df['high'].iloc[i] - df['low'].iloc[i]) * 0.1:
                     score += 3
-            
             return max(-7.5, min(7.5, score))
         except:
             return 0
@@ -345,6 +495,17 @@ class DerivSMCAnalyzer:
             return float(volatility) if not np.isnan(volatility) else 30.0
         except:
             return 30.0
+    
+    def _neutral_signal(self, symbol: str) -> Dict:
+        """Return neutral signal"""
+        return {
+            "confidence": 0,
+            "signal": "NEUTRAL",
+            "strength": 0,
+            "price": self.prices.get(symbol, 0),
+            "timestamp": datetime.now().isoformat(),
+            "strategy": "NEUTRAL"
+        }
 
 # ============ DERIV API CLIENT ============
 class DerivAPIClient:
@@ -355,9 +516,10 @@ class DerivAPIClient:
         self.accounts = []
         self.balance = 0.0
         self.prices = {}
-        self.request_id = 0
+        self.price_subscriptions = set()
         self.reconnect_attempts = 0
-        self.max_reconnect = 3
+        self.max_reconnect = 5
+        self.connection_lock = threading.Lock()
     
     def connect_with_oauth(self, auth_code: str) -> Tuple[bool, str]:
         """Connect using OAuth2"""
@@ -459,39 +621,95 @@ class DerivAPIClient:
             logger.error(f"WebSocket connection error: {str(e)}")
             return False, f"Connection error: {str(e)}"
     
-    def get_balance(self) -> float:
+    def subscribe_price(self, symbol: str):
+        """Subscribe to price updates for a symbol"""
         try:
             if not self.connected or not self.ws:
-                return self.balance
+                return False
             
-            self.ws.send(json.dumps({"balance": 1}))
+            if symbol in self.price_subscriptions:
+                return True
+            
+            # Subscribe to ticks
+            subscribe_msg = {
+                "ticks": symbol,
+                "subscribe": 1
+            }
+            
+            self.ws.send(json.dumps(subscribe_msg))
+            
+            # Read initial response
             response = self.ws.recv()
             data = json.loads(response)
-            if "balance" in data:
-                self.balance = float(data["balance"]["balance"])
-            return self.balance
-        except:
-            return self.balance
+            
+            if "error" not in data:
+                self.price_subscriptions.add(symbol)
+                logger.info(f"Subscribed to {symbol}")
+                return True
+            
+            return False
+        except Exception as e:
+            logger.error(f"Subscribe error for {symbol}: {e}")
+            return False
     
     def get_price(self, symbol: str) -> Optional[float]:
+        """Get current price with subscription"""
         try:
             if not self.connected or not self.ws:
                 return self.prices.get(symbol)
             
-            # Subscribe to ticks
-            self.ws.send(json.dumps({"ticks": symbol, "subscribe": 1}))
-            response = self.ws.recv()
-            data = json.loads(response)
+            # Subscribe if not already subscribed
+            if symbol not in self.price_subscriptions:
+                self.subscribe_price(symbol)
             
-            if "tick" in data:
-                price = float(data["tick"]["quote"])
-                self.prices[symbol] = price
-                return price
+            # Try to get latest price
+            if symbol in self.prices:
+                return self.prices[symbol]
+            
+            # Request fresh price
+            self.ws.send(json.dumps({"ticks": symbol}))
+            self.ws.settimeout(1.0)
+            
+            try:
+                response = self.ws.recv()
+                data = json.loads(response)
+                
+                if "tick" in data:
+                    price = float(data["tick"]["quote"])
+                    self.prices[symbol] = price
+                    return price
+            except websocket.WebSocketTimeoutException:
+                pass
             
             return self.prices.get(symbol)
         except Exception as e:
             logger.error(f"Get price error for {symbol}: {e}")
             return self.prices.get(symbol)
+    
+    def update_prices(self):
+        """Update all subscribed prices"""
+        try:
+            if not self.connected or not self.ws:
+                return
+            
+            # Non-blocking check for price updates
+            self.ws.settimeout(0.1)
+            
+            try:
+                response = self.ws.recv()
+                data = json.loads(response)
+                
+                if "tick" in data:
+                    symbol = data["tick"].get("symbol")
+                    price = float(data["tick"]["quote"])
+                    if symbol:
+                        self.prices[symbol] = price
+            except websocket.WebSocketTimeoutException:
+                pass
+            except Exception as e:
+                logger.error(f"Price update error: {e}")
+        except:
+            pass
     
     def get_candles(self, symbol: str, timeframe: str = "5m", count: int = 100) -> Optional[pd.DataFrame]:
         try:
@@ -537,52 +755,69 @@ class DerivAPIClient:
     
     def place_trade(self, symbol: str, direction: str, amount: float) -> Tuple[bool, str]:
         try:
-            if not self.connected or not self.ws:
-                return False, "Not connected to Deriv"
-            
-            # Minimum amount
-            if amount < 0.35:
-                amount = 0.35
-            
-            # Determine contract type
-            contract_type = "CALL" if direction.upper() in ["BUY", "UP", "CALL"] else "PUT"
-            currency = self.account_info.get("currency", "USD")
-            
-            trade_request = {
-                "buy": amount,
-                "price": amount,
-                "parameters": {
-                    "amount": amount,
-                    "basis": "stake",
-                    "contract_type": contract_type,
-                    "currency": currency,
-                    "duration": 5,
-                    "duration_unit": "m",
-                    "symbol": symbol
+            with self.connection_lock:
+                if not self.connected or not self.ws:
+                    return False, "Not connected to Deriv"
+                
+                # Minimum amount
+                if amount < 0.35:
+                    amount = 0.35
+                
+                # Determine contract type
+                contract_type = "CALL" if direction.upper() in ["BUY", "UP", "CALL"] else "PUT"
+                currency = self.account_info.get("currency", "USD")
+                
+                trade_request = {
+                    "buy": amount,
+                    "price": amount,
+                    "parameters": {
+                        "amount": amount,
+                        "basis": "stake",
+                        "contract_type": contract_type,
+                        "currency": currency,
+                        "duration": 5,
+                        "duration_unit": "m",
+                        "symbol": symbol
+                    }
                 }
-            }
-            
-            logger.info(f"Placing trade: {symbol} {direction} ${amount}")
-            
-            self.ws.send(json.dumps(trade_request))
-            response = self.ws.recv()
-            data = json.loads(response)
-            
-            if "error" in data:
-                error_msg = data["error"].get("message", "Trade failed")
-                return False, f"Trade failed: {error_msg}"
-            
-            if "buy" in data:
-                contract_id = data["buy"].get("contract_id", "Unknown")
-                # Update balance
-                self.get_balance()
-                return True, contract_id
-            
-            return False, "Unknown trade error"
-            
+                
+                logger.info(f"📊 Placing REAL trade: {symbol} {direction} ${amount}")
+                
+                self.ws.send(json.dumps(trade_request))
+                response = self.ws.recv()
+                data = json.loads(response)
+                
+                if "error" in data:
+                    error_msg = data["error"].get("message", "Trade failed")
+                    logger.error(f"Trade failed: {error_msg}")
+                    return False, f"Trade failed: {error_msg}"
+                
+                if "buy" in data:
+                    contract_id = data["buy"].get("contract_id", "Unknown")
+                    # Update balance
+                    self.get_balance()
+                    logger.info(f"✅ Trade executed successfully: {contract_id}")
+                    return True, contract_id
+                
+                return False, "Unknown trade error"
+                
         except Exception as e:
             logger.error(f"Place trade error: {e}")
             return False, f"Trade error: {str(e)}"
+    
+    def get_balance(self) -> float:
+        try:
+            if not self.connected or not self.ws:
+                return self.balance
+            
+            self.ws.send(json.dumps({"balance": 1}))
+            response = self.ws.recv()
+            data = json.loads(response)
+            if "balance" in data:
+                self.balance = float(data["balance"]["balance"])
+            return self.balance
+        except:
+            return self.balance
     
     def close_connection(self):
         try:
@@ -598,7 +833,7 @@ class TradingEngine:
     def __init__(self, user_id: str):
         self.user_id = user_id
         self.api_client = None
-        self.analyzer = DerivSMCAnalyzer()
+        self.analyzer = DualStrategySMCAnalyzer()
         self.running = False
         self.trades = []
         self.active_trades = []
@@ -612,18 +847,27 @@ class TradingEngine:
             'last_reset': datetime.now()
         }
         self.settings = {
-            'enabled_markets': ['R_75', 'R_100'],
+            'enabled_markets': ['R_75', 'R_100', 'frxEURUSD', 'frxGBPUSD'],
             'min_confidence': 65,
             'trade_amount': 1.0,
             'max_concurrent_trades': 3,
-            'max_daily_trades': 30,
-            'max_hourly_trades': 10,
-            'dry_run': True,
+            'max_daily_trades': 50,
+            'max_hourly_trades': 15,
+            'dry_run': False,  # REAL TRADING BY DEFAULT
             'risk_level': 1.0,
             'session_aware': True,
             'volatility_filter': True
         }
         self.thread = None
+        self.price_update_thread = None
+        self.last_trade_time = {}
+        self.cooldown_periods = {
+            'forex': 300,  # 5 minutes between Forex trades
+            'volatility': 120,  # 2 minutes between Volatility trades
+            'crash': 180,  # 3 minutes between Crash trades
+            'boom': 180,  # 3 minutes between Boom trades
+            'crypto': 300  # 5 minutes between Crypto trades
+        }
     
     def connect_with_oauth(self, auth_code: str) -> Tuple[bool, str]:
         try:
@@ -657,23 +901,40 @@ class TradingEngine:
             return False, "Not connected to Deriv"
         
         self.running = True
+        
+        # Start price update thread
+        self.price_update_thread = threading.Thread(target=self._price_update_loop, daemon=True)
+        self.price_update_thread.start()
+        
+        # Start trading thread
         self.thread = threading.Thread(target=self._trading_loop, daemon=True)
         self.thread.start()
         
-        logger.info(f"Trading started for user {self.user_id}")
-        return True, "Trading started"
+        logger.info(f"💰 REAL TRADING started for user {self.user_id}")
+        return True, "REAL TRADING started - Trades will execute!"
     
     def stop_trading(self):
         self.running = False
         logger.info(f"Trading stopped for user {self.user_id}")
     
+    def _price_update_loop(self):
+        """Update prices continuously"""
+        while self.running:
+            try:
+                if self.api_client and self.api_client.connected:
+                    self.api_client.update_prices()
+                time.sleep(2)  # Update every 2 seconds
+            except Exception as e:
+                logger.error(f"Price update error: {e}")
+                time.sleep(5)
+    
     def _trading_loop(self):
-        logger.info(f"Trading loop started for user {self.user_id}")
+        logger.info(f"🔥 REAL TRADING loop started for user {self.user_id}")
         
         while self.running:
             try:
                 if not self._can_trade():
-                    time.sleep(10)
+                    time.sleep(5)
                     continue
                 
                 for symbol in self.settings['enabled_markets']:
@@ -681,54 +942,104 @@ class TradingEngine:
                         break
                     
                     try:
+                        # Check cooldown
+                        if not self._check_cooldown(symbol):
+                            continue
+                        
+                        # Get real-time data
+                        current_price = self.api_client.get_price(symbol)
+                        if not current_price:
+                            continue
+                        
+                        # Get candles for analysis
                         df = self.api_client.get_candles(symbol, "5m", 100)
                         if df is None or len(df) < 20:
                             continue
                         
-                        analysis = self.analyzer.analyze_market(df, symbol)
+                        # Analyze market
+                        analysis = self.analyzer.analyze_market(df, symbol, current_price)
                         
-                        if analysis['signal'] != 'NEUTRAL' and analysis['confidence'] >= self.settings['min_confidence']:
-                            direction = "BUY" if analysis['signal'] == "BUY" else "SELL"
+                        # Check if we should trade
+                        if (analysis['signal'] != 'NEUTRAL' and 
+                            analysis['confidence'] >= self.settings['min_confidence']):
                             
+                            direction = analysis['signal']
+                            confidence = analysis['confidence']
+                            
+                            # Execute trade based on dry_run setting
                             if self.settings['dry_run']:
-                                logger.info(f"DRY RUN: Would trade {symbol} {direction} at ${self.settings['trade_amount']}")
+                                logger.info(f"📝 DRY RUN: Would trade {symbol} {direction} at ${self.settings['trade_amount']} (Confidence: {confidence}%)")
                                 self._record_trade({
                                     'symbol': symbol,
                                     'direction': direction,
                                     'amount': self.settings['trade_amount'],
+                                    'confidence': confidence,
                                     'dry_run': True,
                                     'timestamp': datetime.now().isoformat(),
                                     'analysis': analysis
                                 })
-                                time.sleep(2)
+                                time.sleep(1)
                             else:
+                                # REAL TRADE EXECUTION
+                                logger.info(f"🚀 EXECUTING REAL TRADE: {symbol} {direction} ${self.settings['trade_amount']} (Confidence: {confidence}%)")
+                                
                                 success, trade_id = self.api_client.place_trade(
                                     symbol, direction, self.settings['trade_amount']
                                 )
                                 
                                 if success:
-                                    logger.info(f"REAL TRADE: {symbol} {direction} - {trade_id}")
+                                    logger.info(f"✅ TRADE SUCCESS: {symbol} {direction} - ID: {trade_id}")
                                     self._record_trade({
                                         'symbol': symbol,
                                         'direction': direction,
                                         'amount': self.settings['trade_amount'],
                                         'trade_id': trade_id,
+                                        'confidence': confidence,
                                         'dry_run': False,
                                         'timestamp': datetime.now().isoformat(),
                                         'analysis': analysis
                                     })
+                                    
+                                    # Update cooldown
+                                    self._update_cooldown(symbol)
                                 else:
-                                    logger.error(f"Trade failed: {trade_id}")
+                                    logger.error(f"❌ TRADE FAILED: {trade_id}")
                     
                     except Exception as e:
                         logger.error(f"Error processing {symbol}: {e}")
                         continue
                 
-                time.sleep(30)
+                time.sleep(10)  # Check markets every 10 seconds
                 
             except Exception as e:
                 logger.error(f"Trading loop error: {e}")
-                time.sleep(60)
+                time.sleep(30)
+    
+    def _check_cooldown(self, symbol: str) -> bool:
+        """Check if we should wait before trading this symbol again"""
+        try:
+            if symbol not in self.last_trade_time:
+                return True
+            
+            market_info = DERIV_MARKETS.get(symbol, {})
+            strategy_type = market_info.get('strategy_type', 'forex')
+            
+            cooldown = self.cooldown_periods.get(strategy_type, 300)
+            last_trade = self.last_trade_time[symbol]
+            
+            time_since_last = (datetime.now() - last_trade).total_seconds()
+            
+            if time_since_last < cooldown:
+                # logger.debug(f"Cooldown for {symbol}: {int(cooldown - time_since_last)}s remaining")
+                return False
+            
+            return True
+        except:
+            return True
+    
+    def _update_cooldown(self, symbol: str):
+        """Update last trade time for cooldown"""
+        self.last_trade_time[symbol] = datetime.now()
     
     def _can_trade(self) -> bool:
         try:
@@ -780,6 +1091,24 @@ class TradingEngine:
         balance = self.api_client.get_balance() if self.api_client else 0.0
         connected = self.api_client.connected if self.api_client else False
         
+        # Get current prices for all enabled markets
+        market_data = {}
+        if self.api_client and self.api_client.connected:
+            for symbol in self.settings.get('enabled_markets', []):
+                try:
+                    price = self.api_client.get_price(symbol)
+                    if price:
+                        # Get analysis from memory if available
+                        analysis = self.analyzer.last_analysis.get(symbol, {})
+                        market_data[symbol] = {
+                            'name': DERIV_MARKETS.get(symbol, {}).get('name', symbol),
+                            'price': price,
+                            'analysis': analysis,
+                            'category': DERIV_MARKETS.get(symbol, {}).get('category', 'Unknown')
+                        }
+                except Exception as e:
+                    continue
+        
         return {
             'running': self.running,
             'connected': connected,
@@ -787,18 +1116,19 @@ class TradingEngine:
             'accounts': self.api_client.accounts if self.api_client else [],
             'stats': self.stats,
             'settings': self.settings,
-            'recent_trades': self.trades[-10:][::-1] if self.trades else [],
-            'active_trades': len(self.active_trades)
+            'recent_trades': self.trades[-20:][::-1] if self.trades else [],
+            'active_trades': len(self.active_trades),
+            'market_data': market_data
         }
 
 # ============ FLASK APP ============
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_urlsafe(32))
 
-# Add session configuration
+# Session config
 app.config.update(
-    SESSION_COOKIE_SECURE=False,  # Set to True in production with HTTPS
+    SESSION_COOKIE_SECURE=False,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
     PERMANENT_SESSION_LIFETIME=timedelta(hours=24)
@@ -811,7 +1141,6 @@ trading_engines = {}
 # ============ OAUTH ROUTES ============
 @app.route('/oauth/authorize')
 def oauth_authorize():
-    """Redirect to Deriv OAuth"""
     try:
         state = secrets.token_urlsafe(16)
         session['oauth_state'] = state
@@ -825,7 +1154,6 @@ def oauth_authorize():
         }
         
         auth_url = f"{DERIV_OAUTH_CONFIG['auth_url']}?{urllib.parse.urlencode(params)}"
-        logger.info(f"Redirecting to OAuth: {auth_url}")
         return redirect(auth_url)
         
     except Exception as e:
@@ -834,44 +1162,31 @@ def oauth_authorize():
 
 @app.route('/oauth/callback')
 def oauth_callback():
-    """Handle OAuth callback"""
     try:
         code = request.args.get('code')
         state = request.args.get('state')
         error = request.args.get('error')
         
-        logger.info(f"OAuth callback received - Code: {code}, State: {state}, Error: {error}")
-        
         if error:
             error_description = request.args.get('error_description', 'Unknown error')
-            logger.error(f"OAuth error: {error} - {error_description}")
             return redirect(f'/?error={error}&message={urllib.parse.quote(error_description)}')
         
         if not code:
-            logger.error("No authorization code received")
             return redirect('/?error=no_code&message=No authorization code received')
         
-        # Verify state (basic CSRF protection)
         stored_state = session.get('oauth_state')
         if stored_state and state != stored_state:
-            logger.error(f"State mismatch: {state} != {stored_state}")
             return redirect('/?error=state_mismatch&message=State verification failed')
         
-        # Store code in session
         session['oauth_code'] = code
-        logger.info(f"OAuth code stored in session: {code[:20]}...")
         
-        # Clear state
         if 'oauth_state' in session:
             del session['oauth_state']
         
-        # Check if user is logged in
         username = session.get('username')
         if username:
-            logger.info(f"User {username} has OAuth code, redirecting to connection")
             return redirect('/#connection')
         else:
-            logger.info("User not logged in, redirecting to home")
             return redirect('/')
         
     except Exception as e:
@@ -881,13 +1196,10 @@ def oauth_callback():
 # ============ API ROUTES ============
 @app.route('/api/login', methods=['POST'])
 def api_login():
-    """User login"""
     try:
         data = request.json
         username = data.get('username', '').strip()
         password = data.get('password', '').strip()
-        
-        logger.info(f"Login attempt for user: {username}")
         
         if not username or not password:
             return jsonify({'success': False, 'message': 'Username and password required'})
@@ -898,14 +1210,12 @@ def api_login():
             session['username'] = username
             session.permanent = True
             
-            # Create trading engine for user if not exists
             if username not in trading_engines:
                 user_data = user_db.get_user(username)
                 engine = TradingEngine(user_id=user_data['user_id'])
                 engine.update_settings(user_data.get('settings', {}))
                 trading_engines[username] = engine
             
-            logger.info(f"User logged in successfully: {username}")
             return jsonify({'success': True, 'message': 'Login successful'})
         else:
             return jsonify({'success': False, 'message': message})
@@ -916,13 +1226,10 @@ def api_login():
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
-    """User registration"""
     try:
         data = request.json
         username = data.get('username', '').strip()
         password = data.get('password', '').strip()
-        
-        logger.info(f"Registration attempt for user: {username}")
         
         if not username or not password:
             return jsonify({'success': False, 'message': 'Username and password required'})
@@ -936,7 +1243,6 @@ def api_register():
         success, message = user_db.create_user(username, password)
         
         if success:
-            logger.info(f"New user registered: {username}")
             return jsonify({'success': True, 'message': 'Registration successful. Please login.'})
         else:
             return jsonify({'success': False, 'message': message})
@@ -947,11 +1253,9 @@ def api_register():
 
 @app.route('/api/logout', methods=['POST'])
 def api_logout():
-    """User logout"""
     try:
         username = session.get('username')
         if username:
-            # Stop trading engine
             if username in trading_engines:
                 engine = trading_engines[username]
                 engine.stop_trading()
@@ -959,9 +1263,7 @@ def api_logout():
                     engine.api_client.close_connection()
                 del trading_engines[username]
             
-            # Clear session
             session.clear()
-            logger.info(f"User logged out: {username}")
         
         return jsonify({'success': True, 'message': 'Logged out successfully'})
         
@@ -971,15 +1273,11 @@ def api_logout():
 
 @app.route('/api/connect-oauth', methods=['POST'])
 def api_connect_oauth():
-    """Connect using OAuth2 authorization code"""
     try:
         username = session.get('username')
         if not username:
             return jsonify({'success': False, 'message': 'Not logged in'})
         
-        logger.info(f"OAuth connection attempt for user: {username}")
-        
-        # Get OAuth code from session or request
         auth_code = session.get('oauth_code')
         if not auth_code:
             data = request.json
@@ -988,7 +1286,6 @@ def api_connect_oauth():
         if not auth_code:
             return jsonify({'success': False, 'message': 'No OAuth2 authorization code'})
         
-        # Clear existing engine connection
         if username in trading_engines:
             engine = trading_engines[username]
             engine.stop_trading()
@@ -996,36 +1293,30 @@ def api_connect_oauth():
                 engine.api_client.close_connection()
             engine.api_client = None
         else:
-            # Create new engine
             user_data = user_db.get_user(username)
             engine = TradingEngine(user_id=user_data['user_id'])
             engine.update_settings(user_data.get('settings', {}))
             trading_engines[username] = engine
         
-        # Connect using OAuth code
         engine = trading_engines[username]
         success, message = engine.connect_with_oauth(auth_code)
         
         if success:
-            # Clear OAuth code from session
             if 'oauth_code' in session:
                 del session['oauth_code']
             
-            # Update user data with account info
             if engine.api_client and engine.api_client.accounts:
                 user_data = user_db.get_user(username)
                 if user_data:
                     user_data['selected_account'] = engine.api_client.accounts[0]['loginid']
                     user_db.update_user(username, user_data)
             
-            logger.info(f"OAuth connection successful for {username}")
             return jsonify({
                 'success': True,
                 'message': message,
                 'accounts': engine.api_client.accounts if engine.api_client else []
             })
         else:
-            logger.error(f"OAuth connection failed for {username}: {message}")
             return jsonify({'success': False, 'message': message})
             
     except Exception as e:
@@ -1034,7 +1325,6 @@ def api_connect_oauth():
 
 @app.route('/api/connect-token', methods=['POST'])
 def api_connect_token():
-    """Connect using API token"""
     try:
         username = session.get('username')
         if not username:
@@ -1043,12 +1333,9 @@ def api_connect_token():
         data = request.json
         api_token = data.get('api_token', '').strip()
         
-        logger.info(f"Token connection attempt for user: {username}")
-        
         if not api_token:
             return jsonify({'success': False, 'message': 'API token required'})
         
-        # Clear existing engine connection
         if username in trading_engines:
             engine = trading_engines[username]
             engine.stop_trading()
@@ -1056,32 +1343,27 @@ def api_connect_token():
                 engine.api_client.close_connection()
             engine.api_client = None
         else:
-            # Create new engine
             user_data = user_db.get_user(username)
             engine = TradingEngine(user_id=user_data['user_id'])
             engine.update_settings(user_data.get('settings', {}))
             trading_engines[username] = engine
         
-        # Connect using token
         engine = trading_engines[username]
         success, message = engine.connect_with_token(api_token)
         
         if success:
-            # Update user data with account info
             if engine.api_client and engine.api_client.accounts:
                 user_data = user_db.get_user(username)
                 if user_data:
                     user_data['selected_account'] = engine.api_client.accounts[0]['loginid']
                     user_db.update_user(username, user_data)
             
-            logger.info(f"Token connection successful for {username}")
             return jsonify({
                 'success': True,
                 'message': message,
                 'accounts': engine.api_client.accounts if engine.api_client else []
             })
         else:
-            logger.error(f"Token connection failed for {username}: {message}")
             return jsonify({'success': False, 'message': message})
             
     except Exception as e:
@@ -1090,7 +1372,6 @@ def api_connect_token():
 
 @app.route('/api/status', methods=['GET'])
 def api_status():
-    """Get trading status"""
     try:
         username = session.get('username')
         if not username:
@@ -1102,32 +1383,11 @@ def api_status():
         
         status = engine.get_status()
         
-        # Get market data for enabled markets
-        market_data = {}
-        if engine.api_client and engine.api_client.connected:
-            for symbol in engine.settings.get('enabled_markets', []):
-                try:
-                    df = engine.api_client.get_candles(symbol, "5m", 50)
-                    if df is not None and len(df) > 0:
-                        analysis = engine.analyzer.analyze_market(df, symbol)
-                        price = engine.api_client.get_price(symbol)
-                        
-                        market_data[symbol] = {
-                            'name': DERIV_MARKETS.get(symbol, {}).get('name', symbol),
-                            'price': price,
-                            'analysis': analysis,
-                            'category': DERIV_MARKETS.get(symbol, {}).get('category', 'Unknown')
-                        }
-                except Exception as e:
-                    logger.error(f"Error getting market data for {symbol}: {e}")
-                    continue
-        
         return jsonify({
             'success': True,
             'status': status,
-            'market_data': market_data,
             'markets': DERIV_MARKETS,
-            'sessions': SESSIONS
+            'sessions': TRADING_SESSIONS
         })
         
     except Exception as e:
@@ -1136,7 +1396,6 @@ def api_status():
 
 @app.route('/api/start-trading', methods=['POST'])
 def api_start_trading():
-    """Start trading"""
     try:
         username = session.get('username')
         if not username:
@@ -1155,7 +1414,6 @@ def api_start_trading():
 
 @app.route('/api/stop-trading', methods=['POST'])
 def api_stop_trading():
-    """Stop trading"""
     try:
         username = session.get('username')
         if not username:
@@ -1174,7 +1432,6 @@ def api_stop_trading():
 
 @app.route('/api/update-settings', methods=['POST'])
 def api_update_settings():
-    """Update trading settings"""
     try:
         username = session.get('username')
         if not username:
@@ -1183,19 +1440,14 @@ def api_update_settings():
         data = request.json
         settings = data.get('settings', {})
         
-        logger.info(f"Updating settings for user: {username}")
-        
-        # Validate settings
         if 'trade_amount' in settings:
             if settings['trade_amount'] < 0.35:
                 return jsonify({'success': False, 'message': 'Minimum trade amount is $0.35'})
         
-        # Update engine settings
         engine = trading_engines.get(username)
         if engine:
             engine.update_settings(settings)
         
-        # Update in database
         user_data = user_db.get_user(username)
         if user_data:
             user_data['settings'].update(settings)
@@ -1209,7 +1461,6 @@ def api_update_settings():
 
 @app.route('/api/place-trade', methods=['POST'])
 def api_place_trade():
-    """Place manual trade"""
     try:
         username = session.get('username')
         if not username:
@@ -1230,13 +1481,8 @@ def api_place_trade():
         if not engine or not engine.api_client or not engine.api_client.connected:
             return jsonify({'success': False, 'message': 'Not connected to Deriv'})
         
-        logger.info(f"Manual trade request: {symbol} {direction} ${amount}")
-        
         # Check if dry run
-        if engine.settings.get('dry_run', True):
-            logger.info(f"DRY RUN: Manual trade {symbol} {direction} ${amount}")
-            
-            # Record dry run trade
+        if engine.settings.get('dry_run', False):
             engine._record_trade({
                 'symbol': symbol,
                 'direction': direction,
@@ -1256,7 +1502,6 @@ def api_place_trade():
         success, trade_id = engine.api_client.place_trade(symbol, direction, amount)
         
         if success:
-            # Record trade
             engine._record_trade({
                 'symbol': symbol,
                 'direction': direction,
@@ -1281,7 +1526,6 @@ def api_place_trade():
 
 @app.route('/api/analyze-market', methods=['POST'])
 def api_analyze_market():
-    """Analyze specific market"""
     try:
         username = session.get('username')
         if not username:
@@ -1299,11 +1543,13 @@ def api_analyze_market():
         
         # Get market data
         df = engine.api_client.get_candles(symbol, "5m", 100)
-        if df is None:
+        current_price = engine.api_client.get_price(symbol)
+        
+        if df is None or current_price is None:
             return jsonify({'success': False, 'message': 'Failed to get market data'})
         
         # Analyze
-        analysis = engine.analyzer.analyze_market(df, symbol)
+        analysis = engine.analyzer.analyze_market(df, symbol, current_price)
         
         return jsonify({
             'success': True,
@@ -1318,7 +1564,6 @@ def api_analyze_market():
 
 @app.route('/api/check-session', methods=['GET'])
 def api_check_session():
-    """Check if user has active session"""
     try:
         username = session.get('username')
         if username:
@@ -1328,19 +1573,17 @@ def api_check_session():
     except Exception as e:
         return jsonify({'success': False, 'username': None})
 
-# ============ MAIN ROUTE ============
+# ============ MAIN ROUTES ============
 @app.route('/')
 def index():
     """Main route - serve the web interface"""
     return render_template_string(HTML_TEMPLATE)
 
-# ============ HEALTH CHECK ============
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint for Render"""
     return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
 
-# ============ ERROR HANDLERS ============
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({'success': False, 'message': 'Endpoint not found'}), 404
@@ -1355,10 +1598,9 @@ HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>🎯 Karanka V7 - Deriv SMC Trading Bot</title>
+    <title>🎯 Karanka V8 - Deriv SMC Trading Bot</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        /* ALL YOUR CSS STYLES FROM BEFORE - KEEP THEM EXACTLY AS THEY WERE */
         :root {
             --black-primary: #0a0a0a;
             --black-secondary: #1a1a1a;
@@ -1581,15 +1823,76 @@ HTML_TEMPLATE = '''
             color: #FFB74D;
         }
         
-        /* ... ALL OTHER CSS STYLES KEEP AS BEFORE ... */
-        /* I'm keeping them short here but they should be EXACTLY as in your previous working version */
+        .market-card {
+            background: var(--black-tertiary);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid var(--black-secondary);
+            transition: all 0.3s;
+        }
+        
+        .market-card:hover {
+            border-color: var(--gold-secondary);
+            transform: translateY(-2px);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            background: var(--black-tertiary);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid var(--gold-secondary);
+        }
+        
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 22px;
+            }
+            
+            .status-bar {
+                gap: 10px;
+            }
+            
+            .status-bar span {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+            
+            .tabs-container {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+            }
+            
+            .tab {
+                padding: 12px 16px;
+                font-size: 14px;
+            }
+            
+            .content-panel {
+                padding: 15px;
+            }
+            
+            .btn {
+                padding: 12px 20px;
+                font-size: 14px;
+                margin: 5px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="app-container">
         <!-- Header -->
         <div class="header">
-            <h1>🎯 KARANKA V7 - SMC DERIV TRADING BOT</h1>
+            <h1>🎯 KARANKA V8 - SMART SMC TRADING BOT</h1>
             <div class="status-bar">
                 <span id="connection-status">🔴 Disconnected</span>
                 <span id="trading-status">❌ Not Trading</span>
@@ -1632,7 +1935,6 @@ HTML_TEMPLATE = '''
                 <div class="tab" onclick="showTab('trading')">⚡ Trading</div>
                 <div class="tab" onclick="showTab('settings')">⚙️ Settings</div>
                 <div class="tab" onclick="showTab('trades')">💼 Trades</div>
-                <div class="tab" onclick="showTab('analysis')">🧠 Analysis</div>
                 <div class="tab" onclick="logout()" style="background: var(--danger); color: white;">🚪 Logout</div>
             </div>
             
@@ -1640,29 +1942,43 @@ HTML_TEMPLATE = '''
             <div id="dashboard" class="content-panel active">
                 <h2 style="color: var(--gold-primary); margin-bottom: 20px;">📊 Trading Dashboard</h2>
                 
-                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; margin: 20px 0;">
-                    <div class="stat-card" style="background: var(--black-tertiary); padding: 20px; border-radius: 12px; text-align: center;">
+                <div class="stats-grid">
+                    <div class="stat-card">
                         <div style="font-size: 12px; color: var(--gold-secondary);">Balance</div>
                         <div style="font-size: 24px; color: var(--gold-primary); font-weight: bold;" id="stat-balance">$0.00</div>
                     </div>
                     
-                    <div class="stat-card" style="background: var(--black-tertiary); padding: 20px; border-radius: 12px; text-align: center;">
+                    <div class="stat-card">
                         <div style="font-size: 12px; color: var(--gold-secondary);">Total Trades</div>
                         <div style="font-size: 24px; color: var(--gold-primary); font-weight: bold;" id="stat-total-trades">0</div>
                     </div>
                     
-                    <div class="stat-card" style="background: var(--black-tertiary); padding: 20px; border-radius: 12px; text-align: center;">
+                    <div class="stat-card">
                         <div style="font-size: 12px; color: var(--gold-secondary);">Active Trades</div>
                         <div style="font-size: 24px; color: var(--gold-primary); font-weight: bold;" id="stat-active-trades">0</div>
                     </div>
                 </div>
                 
                 <div style="display: flex; gap: 15px; margin-top: 20px;">
-                    <button class="btn btn-success" onclick="startTrading()" id="start-btn">▶️ Start Trading</button>
+                    <button class="btn btn-success" onclick="startTrading()" id="start-btn">🚀 Start Real Trading</button>
                     <button class="btn btn-danger" onclick="stopTrading()" id="stop-btn">⏹️ Stop Trading</button>
                 </div>
                 
                 <div id="dashboard-alert" class="alert" style="display: none; margin-top: 20px;"></div>
+                
+                <div style="margin-top: 30px; padding: 20px; background: var(--black-tertiary); border-radius: 10px;">
+                    <h3 style="color: var(--gold-light); margin-bottom: 15px;">📈 Strategy Status</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px;">
+                        <div style="background: rgba(0, 200, 83, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid var(--success);">
+                            <div style="font-weight: bold; color: var(--success);">Forex/BTC Strategy</div>
+                            <div style="font-size: 12px; color: var(--gold-secondary); margin-top: 5px;">Original SMC Logic</div>
+                        </div>
+                        <div style="background: rgba(33, 150, 243, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid var(--info);">
+                            <div style="font-weight: bold; color: var(--info);">Indices Strategy</div>
+                            <div style="font-size: 12px; color: var(--gold-secondary); margin-top: 5px;">Fast Liquidity Logic</div>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <!-- Connection Tab -->
@@ -1761,9 +2077,17 @@ HTML_TEMPLATE = '''
                 </div>
                 
                 <div class="form-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="setting-dry-run" checked> Dry Run Mode
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="setting-dry-run"> 
+                        <span>Dry Run Mode (Simulate trades only)</span>
                     </label>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Enabled Markets</label>
+                    <div id="market-selection" style="max-height: 300px; overflow-y: auto; padding: 15px; background: var(--black-tertiary); border-radius: 10px;">
+                        <!-- Market checkboxes will be added here -->
+                    </div>
                 </div>
                 
                 <button class="btn btn-success" onclick="saveSettings()">💾 Save Settings</button>
@@ -1780,25 +2104,6 @@ HTML_TEMPLATE = '''
                 </div>
                 
                 <button class="btn" onclick="refreshTrades()" style="margin-top: 15px;">🔄 Refresh</button>
-            </div>
-            
-            <!-- Analysis Tab -->
-            <div id="analysis" class="content-panel">
-                <h2 style="color: var(--gold-primary); margin-bottom: 20px;">🧠 SMC Analysis</h2>
-                
-                <div class="form-group">
-                    <label class="form-label">Select Market</label>
-                    <select id="analysis-symbol" class="form-input">
-                        <option value="">Select market</option>
-                    </select>
-                </div>
-                
-                <button class="btn btn-info" onclick="runAnalysis()">🧠 Run SMC Analysis</button>
-                
-                <div id="analysis-result" style="margin-top: 20px; padding: 20px; background: var(--black-tertiary); border-radius: 10px; display: none;">
-                    <h4 style="color: var(--gold-light); margin-bottom: 15px;">Analysis Result</h4>
-                    <div id="analysis-result-content"></div>
-                </div>
             </div>
         </div>
     </div>
@@ -1959,7 +2264,6 @@ HTML_TEMPLATE = '''
                 showAlert('connection-alert', data.message, data.success ? 'success' : 'error');
                 
                 if (data.success) {
-                    // Clear URL parameters
                     window.history.replaceState({}, document.title, window.location.pathname);
                     
                     if (data.accounts && data.accounts.length > 0) {
@@ -2018,26 +2322,26 @@ HTML_TEMPLATE = '''
                 `;
                 
                 accountItem.innerHTML = `
-                    <div>
-                        <div style="font-weight: bold; color: var(--gold-primary);">${account.name}</div>
-                        <div style="font-size: 12px; color: var(--gold-secondary);">
-                            Balance: $${account.balance.toFixed(2)} | ${account.currency}
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: bold; color: var(--gold-primary);">${account.name}</div>
+                            <div style="font-size: 12px; color: var(--gold-secondary);">
+                                Balance: $${account.balance?.toFixed(2) || '0.00'} | ${account.currency}
+                            </div>
                         </div>
+                        <span style="padding: 3px 10px; border-radius: 5px; font-size: 12px; 
+                              background: ${account.type === 'demo' ? 'var(--warning)' : 'var(--success)'}; 
+                              color: var(--black-primary);">
+                            ${account.type?.toUpperCase() || 'UNKNOWN'}
+                        </span>
                     </div>
-                    <span style="padding: 3px 10px; border-radius: 5px; font-size: 12px; 
-                          background: ${account.type === 'demo' ? 'var(--warning)' : 'var(--success)'}; 
-                          color: var(--black-primary);">
-                        ${account.type.toUpperCase()}
-                    </span>
                 `;
                 
                 accountItem.onclick = () => {
-                    // Remove selection from all items
                     document.querySelectorAll('.account-item').forEach(item => {
                         item.style.borderColor = 'transparent';
                     });
                     
-                    // Select this item
                     accountItem.style.borderColor = 'var(--gold-primary)';
                     selectedAccount = account;
                 };
@@ -2056,14 +2360,12 @@ HTML_TEMPLATE = '''
             
             showAlert('connection-alert', `Selected account: ${selectedAccount.name}`, 'success');
             document.getElementById('account-selection').classList.add('hidden');
-            
-            // Update status
             await updateStatus();
         }
         
         // ============ TRADING ============
         async function startTrading() {
-            showAlert('dashboard-alert', 'Starting trading...', 'warning');
+            showAlert('dashboard-alert', '🚀 Starting REAL trading...', 'warning');
             
             try {
                 const response = await fetch('/api/start-trading', {
@@ -2139,7 +2441,6 @@ HTML_TEMPLATE = '''
                 showAlert('trading-alert', data.message, data.success ? 'success' : 'error');
                 
                 if (data.success) {
-                    // Refresh trades
                     await updateStatus();
                 }
             } catch (error) {
@@ -2177,8 +2478,9 @@ HTML_TEMPLATE = '''
                             <span>Confidence: <strong>${analysis.confidence}%</strong></span>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12px;">
-                            <div>Price: $${analysis.price.toFixed(3)}</div>
-                            <div>Volatility: ${analysis.volatility.toFixed(1)}%</div>
+                            <div>Price: ${analysis.price?.toFixed(5) || '--'}</div>
+                            <div>Volatility: ${analysis.volatility?.toFixed(1) || '--'}%</div>
+                            <div>Strategy: ${analysis.strategy || '--'}</div>
                         </div>
                     `;
                     
@@ -2194,34 +2496,33 @@ HTML_TEMPLATE = '''
         
         // ============ MARKETS ============
         function loadMarkets() {
-            const markets = {
-                "R_10": "Volatility 10 Index",
-                "R_25": "Volatility 25 Index",
-                "R_50": "Volatility 50 Index",
-                "R_75": "Volatility 75 Index",
-                "R_100": "Volatility 100 Index",
-                "CRASH_300": "Crash 300 Index",
-                "BOOM_300": "Boom 300 Index"
-            };
-            
             const marketsGrid = document.getElementById('markets-grid');
             const tradeSymbol = document.getElementById('trade-symbol');
-            const analysisSymbol = document.getElementById('analysis-symbol');
             
             marketsGrid.innerHTML = '';
             tradeSymbol.innerHTML = '<option value="">Select market</option>';
-            analysisSymbol.innerHTML = '<option value="">Select market</option>';
+            
+            // Get markets from API or use default
+            const markets = {
+                "frxEURUSD": "EUR/USD",
+                "frxGBPUSD": "GBP/USD", 
+                "frxUSDJPY": "USD/JPY",
+                "frxAUDUSD": "AUD/USD",
+                "R_25": "Volatility 25",
+                "R_50": "Volatility 50",
+                "R_75": "Volatility 75",
+                "R_100": "Volatility 100",
+                "CRASH_300": "Crash 300",
+                "CRASH_500": "Crash 500",
+                "BOOM_300": "Boom 300",
+                "BOOM_500": "Boom 500",
+                "cryBTCUSD": "BTC/USD"
+            };
             
             for (const [symbol, name] of Object.entries(markets)) {
                 // Market card
                 const marketCard = document.createElement('div');
                 marketCard.className = 'market-card';
-                marketCard.style.cssText = `
-                    background: var(--black-tertiary);
-                    padding: 20px;
-                    border-radius: 10px;
-                    border: 1px solid var(--black-secondary);
-                `;
                 
                 marketCard.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
@@ -2240,18 +2541,16 @@ HTML_TEMPLATE = '''
                     </div>
                     <div style="display: flex; gap: 10px;">
                         <button class="btn" onclick="analyzeMarket('${symbol}')" style="flex: 1; padding: 8px; font-size: 12px;">🧠 Analyze</button>
-                        <button class="btn btn-success" onclick="quickTrade('${symbol}', 'BUY')" style="flex: 1; padding: 8px; font-size: 12px;">📈 BUY</button>
                     </div>
                 `;
                 
                 marketsGrid.appendChild(marketCard);
                 
-                // Dropdown options
+                // Dropdown option
                 const tradeOption = document.createElement('option');
                 tradeOption.value = symbol;
                 tradeOption.textContent = `${name} (${symbol})`;
-                tradeSymbol.appendChild(tradeOption.cloneNode(true));
-                analysisSymbol.appendChild(tradeOption);
+                tradeSymbol.appendChild(tradeOption);
             }
         }
         
@@ -2264,8 +2563,8 @@ HTML_TEMPLATE = '''
                 const response = await fetch('/api/status');
                 const data = await response.json();
                 
-                if (data.success && data.market_data) {
-                    for (const [symbol, market] of Object.entries(data.market_data)) {
+                if (data.success && data.status && data.status.market_data) {
+                    for (const [symbol, market] of Object.entries(data.status.market_data)) {
                         updateMarketCard(symbol, market);
                     }
                     showAlert('markets-alert', 'Markets refreshed', 'success');
@@ -2281,13 +2580,13 @@ HTML_TEMPLATE = '''
             const confidenceBar = document.getElementById(`confidence-bar-${symbol}`);
             
             if (priceElement && market.price) {
-                priceElement.textContent = market.price.toFixed(3);
+                priceElement.textContent = market.price.toFixed(5);
             }
             
             if (market.analysis) {
                 const analysis = market.analysis;
-                confidenceElement.textContent = `${analysis.confidence}%`;
-                confidenceBar.style.width = `${analysis.confidence}%`;
+                confidenceElement.textContent = `${analysis.confidence || 0}%`;
+                confidenceBar.style.width = `${analysis.confidence || 0}%`;
                 
                 // Update bar color based on confidence
                 if (analysis.confidence >= 70) {
@@ -2331,17 +2630,11 @@ HTML_TEMPLATE = '''
             showAlert('markets-alert', 'Analyzing all markets...', 'warning');
             
             // Analyze each market
-            const markets = ["R_75", "R_100", "CRASH_300", "BOOM_300"];
+            const markets = ["frxEURUSD", "frxGBPUSD", "R_75", "R_100", "CRASH_300", "BOOM_300", "cryBTCUSD"];
             for (const symbol of markets) {
                 await analyzeMarket(symbol);
-                await new Promise(resolve => setTimeout(resolve, 500)); // Delay between requests
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
-        }
-        
-        function quickTrade(symbol, direction) {
-            document.getElementById('trade-symbol').value = symbol;
-            setTradeDirection(direction);
-            showTab('trading');
         }
         
         // ============ SETTINGS ============
@@ -2355,10 +2648,78 @@ HTML_TEMPLATE = '''
                     
                     document.getElementById('setting-trade-amount').value = currentSettings.trade_amount || 1.0;
                     document.getElementById('setting-min-confidence').value = currentSettings.min_confidence || 65;
-                    document.getElementById('setting-dry-run').checked = currentSettings.dry_run !== false;
+                    document.getElementById('setting-dry-run').checked = currentSettings.dry_run || false;
+                    
+                    // Load market selection
+                    loadMarketSelection(currentSettings.enabled_markets || []);
                 }
             } catch (error) {
                 console.error('Error loading settings:', error);
+            }
+        }
+        
+        function loadMarketSelection(enabledMarkets) {
+            const marketSelection = document.getElementById('market-selection');
+            marketSelection.innerHTML = '';
+            
+            const marketsByCategory = {
+                'Forex': ["frxEURUSD", "frxGBPUSD", "frxUSDJPY", "frxAUDUSD"],
+                'Volatility Indices': ["R_25", "R_50", "R_75", "R_100"],
+                'Crash/Boom Indices': ["CRASH_300", "CRASH_500", "BOOM_300", "BOOM_500"],
+                'Crypto': ["cryBTCUSD"]
+            };
+            
+            for (const [category, markets] of Object.entries(marketsByCategory)) {
+                const categoryDiv = document.createElement('div');
+                categoryDiv.style.marginBottom = '20px';
+                
+                const categoryTitle = document.createElement('div');
+                categoryTitle.style.cssText = `
+                    font-weight: bold;
+                    color: var(--gold-primary);
+                    margin-bottom: 10px;
+                    padding-bottom: 5px;
+                    border-bottom: 1px solid var(--gold-secondary);
+                `;
+                categoryTitle.textContent = category;
+                categoryDiv.appendChild(categoryTitle);
+                
+                markets.forEach(symbol => {
+                    const marketName = DERIV_MARKETS[symbol]?.name || symbol;
+                    
+                    const checkboxDiv = document.createElement('div');
+                    checkboxDiv.style.cssText = `
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        margin-bottom: 8px;
+                        padding: 8px;
+                        background: rgba(255, 215, 0, 0.05);
+                        border-radius: 5px;
+                    `;
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `market-${symbol}`;
+                    checkbox.value = symbol;
+                    checkbox.checked = enabledMarkets.includes(symbol);
+                    
+                    const label = document.createElement('label');
+                    label.htmlFor = `market-${symbol}`;
+                    label.style.cssText = `
+                        cursor: pointer;
+                        flex: 1;
+                        color: var(--gold-light);
+                        font-size: 14px;
+                    `;
+                    label.textContent = marketName;
+                    
+                    checkboxDiv.appendChild(checkbox);
+                    checkboxDiv.appendChild(label);
+                    categoryDiv.appendChild(checkboxDiv);
+                });
+                
+                marketSelection.appendChild(categoryDiv);
             }
         }
         
@@ -2377,10 +2738,22 @@ HTML_TEMPLATE = '''
                 return;
             }
             
+            // Get selected markets
+            const enabledMarkets = [];
+            document.querySelectorAll('#market-selection input[type="checkbox"]:checked').forEach(checkbox => {
+                enabledMarkets.push(checkbox.value);
+            });
+            
+            if (enabledMarkets.length === 0) {
+                showAlert('settings-alert', 'Please select at least one market', 'error');
+                return;
+            }
+            
             const settings = {
                 trade_amount: tradeAmount,
                 min_confidence: minConfidence,
-                dry_run: dryRun
+                dry_run: dryRun,
+                enabled_markets: enabledMarkets
             };
             
             showAlert('settings-alert', 'Saving settings...', 'warning');
@@ -2435,9 +2808,9 @@ HTML_TEMPLATE = '''
                                   color: var(--black-primary);">
                                 ${trade.direction}
                             </span>
-                            <span style="font-weight: bold; color: var(--gold-light);">$${trade.amount.toFixed(2)}</span>
+                            <span style="font-weight: bold; color: var(--gold-light);">$${trade.amount?.toFixed(2) || '0.00'}</span>
                             <span style="font-size: 12px; color: ${trade.dry_run ? 'var(--warning)' : 'var(--success)'}">
-                                ${trade.dry_run ? 'DRY RUN' : 'LIVE'}
+                                ${trade.dry_run ? 'DRY RUN' : 'REAL'}
                             </span>
                         </div>
                     </div>
@@ -2451,70 +2824,6 @@ HTML_TEMPLATE = '''
             await updateStatus();
         }
         
-        // ============ ANALYSIS ============
-        async function runAnalysis() {
-            const symbol = document.getElementById('analysis-symbol').value;
-            
-            if (!symbol) {
-                alert('Please select a market');
-                return;
-            }
-            
-            try {
-                const response = await fetch('/api/analyze-market', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({symbol})
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    const analysis = data.analysis;
-                    const resultDiv = document.getElementById('analysis-result-content');
-                    const analysisResult = document.getElementById('analysis-result');
-                    
-                    resultDiv.innerHTML = `
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                            <div>
-                                <div style="font-size: 12px; color: var(--gold-secondary);">Signal</div>
-                                <div style="font-size: 18px; color: ${analysis.signal === 'BUY' ? 'var(--success)' : analysis.signal === 'SELL' ? 'var(--danger)' : 'var(--info)'}; font-weight: bold;">
-                                    ${analysis.signal}
-                                </div>
-                            </div>
-                            <div>
-                                <div style="font-size: 12px; color: var(--gold-secondary);">Confidence</div>
-                                <div style="font-size: 18px; color: var(--gold-primary); font-weight: bold;">
-                                    ${analysis.confidence}%
-                                </div>
-                            </div>
-                            <div>
-                                <div style="font-size: 12px; color: var(--gold-secondary);">Price</div>
-                                <div style="font-size: 18px; color: var(--gold-light); font-weight: bold;">
-                                    $${analysis.price.toFixed(3)}
-                                </div>
-                            </div>
-                            <div>
-                                <div style="font-size: 12px; color: var(--gold-secondary);">Volatility</div>
-                                <div style="font-size: 18px; color: var(--gold-light); font-weight: bold;">
-                                    ${analysis.volatility.toFixed(1)}%
-                                </div>
-                            </div>
-                        </div>
-                        <div style="font-size: 12px; color: var(--gold-secondary);">
-                            Analysis time: ${new Date(analysis.timestamp).toLocaleString()}
-                        </div>
-                    `;
-                    
-                    analysisResult.style.display = 'block';
-                } else {
-                    alert(data.message);
-                }
-            } catch (error) {
-                alert('Network error. Please try again.');
-            }
-        }
-        
         // ============ STATUS UPDATES ============
         function startStatusUpdates() {
             if (updateInterval) {
@@ -2522,7 +2831,7 @@ HTML_TEMPLATE = '''
             }
             
             updateStatus();
-            updateInterval = setInterval(updateStatus, 10000); // Update every 10 seconds
+            updateInterval = setInterval(updateStatus, 5000); // Update every 5 seconds
         }
         
         async function updateStatus() {
@@ -2554,16 +2863,16 @@ HTML_TEMPLATE = '''
                     }
                     
                     // Update balance
-                    document.getElementById('balance').textContent = `$${status.balance.toFixed(2)}`;
-                    document.getElementById('stat-balance').textContent = `$${status.balance.toFixed(2)}`;
+                    document.getElementById('balance').textContent = `$${status.balance?.toFixed(2) || '0.00'}`;
+                    document.getElementById('stat-balance').textContent = `$${status.balance?.toFixed(2) || '0.00'}`;
                     
                     // Update stats
-                    document.getElementById('stat-total-trades').textContent = status.stats.total_trades;
-                    document.getElementById('stat-active-trades').textContent = status.active_trades;
+                    document.getElementById('stat-total-trades').textContent = status.stats?.total_trades || 0;
+                    document.getElementById('stat-active-trades').textContent = status.active_trades || 0;
                     
                     // Update markets
-                    if (data.market_data) {
-                        for (const [symbol, market] of Object.entries(data.market_data)) {
+                    if (status.market_data) {
+                        for (const [symbol, market] of Object.entries(status.market_data)) {
                             updateMarketCard(symbol, market);
                         }
                     }
@@ -2578,23 +2887,17 @@ HTML_TEMPLATE = '''
         
         // ============ UTILITY FUNCTIONS ============
         function showTab(tabName) {
-            // Hide all tabs
             document.querySelectorAll('.content-panel').forEach(panel => {
                 panel.classList.remove('active');
             });
             
-            // Remove active class from all tabs
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.classList.remove('active');
             });
             
-            // Show selected tab
             document.getElementById(tabName).classList.add('active');
-            
-            // Add active class to clicked tab
             event.target.classList.add('active');
             
-            // Special handling for specific tabs
             if (tabName === 'markets') {
                 refreshMarkets();
             }
@@ -2608,7 +2911,6 @@ HTML_TEMPLATE = '''
             alertDiv.className = `alert alert-${type}`;
             alertDiv.style.display = 'block';
             
-            // Auto-hide after 5 seconds
             setTimeout(() => {
                 alertDiv.style.display = 'none';
             }, 5000);
@@ -2623,26 +2925,25 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     
     print("\n" + "="*80)
-    print("🎯 KARANKA V7 - DERIV SMC TRADING BOT")
+    print("🎯 KARANKA V8 - DERIV SMART SMC TRADING BOT")
     print("="*80)
-    print("✅ FULLY WORKING UI WITH BACKEND CONNECTIONS")
-    print("✅ ALL FUNCTIONS CONNECTED TO API ENDPOINTS")
-    print("✅ OAUTH2 & API TOKEN SUPPORT")
-    print("✅ REAL-TIME STATUS UPDATES")
-    print("✅ SMC ANALYSIS ENGINE")
+    print("✅ DUAL STRATEGY: Fast logic for indices, Original for Forex/BTC")
+    print("✅ ALL MARKETS INCLUDED: 4 Forex, 4 Volatility, 2 Crash, 2 Boom, BTC")
+    print("✅ REAL TRADING EXECUTION: No default dry-run")
+    print("✅ REAL-TIME PRICE UPDATES: Live market data")
+    print("✅ HARMONIZED STRATEGIES: Different logic per market type")
     print("="*80)
     print(f"🚀 Starting on http://localhost:{port}")
-    print(f"🌐 Public URL: https://karanka-deriv-smc-bot.onrender.com")
     print("="*80)
-    print("\n📱 TESTING INSTRUCTIONS:")
+    print("\n📱 HOW TO USE:")
     print("1. Register/Login")
-    print("2. Click 'Connect with Deriv OAuth2'")
-    print("3. Authorize on Deriv")
-    print("4. Select account")
-    print("5. Go to Markets tab - click 'Refresh Markets'")
-    print("6. Click 'Analyze' on any market")
-    print("7. Check if data appears in cards")
-    print("8. Try placing a trade (dry run mode)")
+    print("2. Connect with Deriv OAuth2")
+    print("3. Go to Settings - Select markets to trade")
+    print("4. IMPORTANT: Disable 'Dry Run' for REAL trading")
+    print("5. Start Trading - Bot will execute based on SMC signals")
+    print("="*80)
+    print("⚠️  WARNING: This bot executes REAL trades by default!")
+    print("💰 Start with small amounts in DEMO account first!")
     print("="*80)
     
     app.run(host='0.0.0.0', port=port, debug=True, threaded=True)
