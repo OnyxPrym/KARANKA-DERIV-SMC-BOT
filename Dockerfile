@@ -1,9 +1,4 @@
-FROM python:3.10-slim
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PORT=5000
+FROM python:3.9-slim
 
 WORKDIR /app
 
@@ -15,23 +10,19 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first for better caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
 
-# Create non-root user for security
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
+# Create non-root user
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
-
-# Expose port
-EXPOSE $PORT
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:$PORT/health', timeout=2)"
+  CMD python -c "import requests; requests.get('http://localhost:5000/health', timeout=2)"
 
-# Run the application
-CMD ["python", "app.py"]
+EXPOSE 5000
+
+CMD ["gunicorn", "app:app", "--workers=2", "--worker-class=sync", "--timeout=120", "--bind=0.0.0.0:5000"]
