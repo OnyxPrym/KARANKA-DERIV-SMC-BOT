@@ -1,17 +1,13 @@
 services:
   - type: web
-    name: karanka-deriv-trading-bot
+    name: karanka-deriv-bot
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --workers=2 --worker-class=sync --timeout=120 --bind=0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9.0
+        value: 3.10.10
       - key: WEB_CONCURRENCY
         value: 2
-      - key: GUNICORN_CMD_ARGS
-        value: "--timeout=120 --keepalive=5 --worker-class=sync"
     healthCheckPath: /health
     autoDeploy: true
-    domains:
-      - karanka-deriv-smc-bot.onrender.com
