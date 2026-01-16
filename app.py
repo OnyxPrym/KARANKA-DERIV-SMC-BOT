@@ -588,4 +588,15 @@ def api_analyze_market():
 # ============ DEPLOYMENT ============
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True, threaded=True)
+    # For Render.com compatibility
+    host = '0.0.0.0'
+    debug = os.environ.get('DEBUG', 'False').lower() == 'true'
+    
+    print("\n" + "="*80)
+    print("🎯 KARANKA V8 - DERIV SMART SMC TRADING BOT")
+    print("="*80)
+    print(f"🚀 Server starting on http://{host}:{port}")
+    print(f"📊 Debug mode: {debug}")
+    print("="*80)
+    
+    app.run(host=host, port=port, debug=debug, threaded=True)
