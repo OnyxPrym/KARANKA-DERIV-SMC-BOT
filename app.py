@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 ================================================================================
-🎯 KARANKA V8 - DERIV REAL-TIME TRADING BOT (PRODUCTION READY)
+🚀 KARANKA V8 - ULTRA-FREQUENT SMC TRADING BOT
 ================================================================================
-• VERIFIED CONNECTION TO DERIV
-• REAL MARKET DATA FEED
-• REAL TRADE EXECUTION
+• ULTRA-FAST SMC STRATEGIES (50-100+ trades/hour possible)
+• REAL DERIV CONNECTION & TRADE EXECUTION
+• MAXIMUM TRADE FREQUENCY CONFIGURATION
 • PRODUCTION-READY FOR RENDER.COM
 ================================================================================
 """
@@ -53,25 +53,25 @@ class Config:
     
     # Trading Settings
     MIN_TRADE_AMOUNT = 0.35  # Minimum amount for Deriv
-    MAX_CONCURRENT_TRADES = 3  # Default max trades at once
-    TRADE_DURATION = 5  # 5 minutes for trades
+    MAX_CONCURRENT_TRADES = 5  # Increased for frequency
+    TRADE_DURATION = 3  # 3 minutes for faster trades
 
-# ============ DERIV MARKETS (YOUR REQUESTED SYMBOLS) ============
+# ============ DERIV MARKETS (ULTRA-ACTIVE) ============
 DERIV_MARKETS = {
-    # Volatility Indices (Binary Options)
-    "volatility_10_index": {"name": "Volatility 10 Index", "pip": 0.001, "category": "Volatility", "strategy": "fast_smc"},
-    "volatility_25_index": {"name": "Volatility 25 Index", "pip": 0.001, "category": "Volatility", "strategy": "fast_smc"},
-    "volatility_50_index": {"name": "Volatility 50 Index", "pip": 0.001, "category": "Volatility", "strategy": "fast_smc"},
-    "volatility_75_index": {"name": "Volatility 75 Index", "pip": 0.001, "category": "Volatility", "strategy": "fast_smc"},
-    "volatility_100_index": {"name": "Volatility 100 Index", "pip": 0.001, "category": "Volatility", "strategy": "fast_smc"},
+    # Volatility Indices (Most Active - HIGH FREQUENCY)
+    "volatility_10_index": {"name": "Volatility 10 Index", "pip": 0.001, "category": "Volatility", "frequency": "ULTRA_HIGH"},
+    "volatility_25_index": {"name": "Volatility 25 Index", "pip": 0.001, "category": "Volatility", "frequency": "ULTRA_HIGH"},
+    "volatility_50_index": {"name": "Volatility 50 Index", "pip": 0.001, "category": "Volatility", "frequency": "HIGH"},
+    "volatility_75_index": {"name": "Volatility 75 Index", "pip": 0.001, "category": "Volatility", "frequency": "ULTRA_HIGH"},
+    "volatility_100_index": {"name": "Volatility 100 Index", "pip": 0.001, "category": "Volatility", "frequency": "ULTRA_HIGH"},
     
-    # Boom Indices
-    "boom_500_index": {"name": "Boom 500 Index", "pip": 0.01, "category": "Boom", "strategy": "fast_smc"},
-    "boom_1000_index": {"name": "Boom 1000 Index", "pip": 0.01, "category": "Boom", "strategy": "fast_smc"},
+    # Boom Indices (Frequent Moves)
+    "boom_500_index": {"name": "Boom 500 Index", "pip": 0.01, "category": "Boom", "frequency": "HIGH"},
+    "boom_1000_index": {"name": "Boom 1000 Index", "pip": 0.01, "category": "Boom", "frequency": "MEDIUM"},
     
-    # Crash Indices
-    "crash_500_index": {"name": "Crash 500 Index", "pip": 0.01, "category": "Crash", "strategy": "fast_smc"},
-    "crash_1000_index": {"name": "Crash 1000 Index", "pip": 0.01, "category": "Crash", "strategy": "fast_smc"},
+    # Crash Indices (Frequent Moves)
+    "crash_500_index": {"name": "Crash 500 Index", "pip": 0.01, "category": "Crash", "frequency": "HIGH"},
+    "crash_1000_index": {"name": "Crash 1000 Index", "pip": 0.01, "category": "Crash", "frequency": "MEDIUM"},
 }
 
 # ============ DATABASE ============
@@ -100,14 +100,17 @@ class UserDatabase:
                 'created_at': datetime.now().isoformat(),
                 'settings': {
                     'enabled_markets': ['volatility_75_index', 'volatility_100_index', 'crash_500_index', 'boom_500_index'],
-                    'min_confidence': 65,
-                    'trade_amount': 1.0,
-                    'max_concurrent_trades': 3,
-                    'max_daily_trades': 50,
-                    'max_hourly_trades': 15,
-                    'dry_run': True,  # SAFETY FIRST - Start with DRY RUN
+                    'min_confidence': 60,  # LOWER for more trades
+                    'trade_amount': 0.50,  # Smaller for more trades
+                    'max_concurrent_trades': 5,  # Increased
+                    'max_daily_trades': 200,  # Much higher
+                    'max_hourly_trades': 50,  # Much higher
+                    'dry_run': True,  # SAFETY FIRST
                     'risk_level': 1.0,
-                    'trade_duration': 5,
+                    'trade_duration': 3,  # Shorter trades
+                    'use_1m_candles': True,  # Faster analysis
+                    'aggressive_mode': True,  # Take more trades
+                    'scan_interval': 5,  # Scan every 5 seconds
                 },
                 'stats': {
                     'total_trades': 0,
@@ -163,135 +166,76 @@ class UserDatabase:
             logger.error(f"❌ Error updating user: {e}")
             return False
 
-# ============ VERIFIED DERIV API CLIENT (TESTED) ============
-class VerifiedDerivAPIClient:
-    """VERIFIED to connect to Deriv and get real market data"""
+# ============ DERIV API CLIENT (OPTIMIZED FOR SPEED) ============
+class FastDerivAPIClient:
+    """OPTIMIZED for maximum speed and frequency"""
     
     def __init__(self):
         self.ws = None
         self.connected = False
         self.account_info = {}
         self.prices = {}
-        self.price_history = defaultdict(list)
         self.subscriptions = set()
         self.running = False
-        self.heartbeat_thread = None
         self.price_thread = None
         self.connection_lock = threading.Lock()
-        self.last_ping = time.time()
+        self.last_price_update = {}
         
     def connect_with_token(self, api_token: str) -> Tuple[bool, str]:
-        """REAL connection to Deriv - VERIFIED WORKING"""
+        """FAST connection to Deriv"""
         try:
-            logger.info("🔄 Attempting connection to Deriv...")
+            logger.info("🚀 FAST CONNECTION to Deriv...")
             
-            # Clean and validate token
             api_token = api_token.strip()
             if not api_token:
                 return False, "API token is empty"
             
-            # WebSocket URL for Deriv
             ws_url = f"{Config.DERIV_WS_URL}?app_id={Config.DERIV_APP_ID}"
             
-            logger.info(f"🔗 Connecting to: {ws_url}")
-            
-            # Create WebSocket connection with timeout
             with self.connection_lock:
-                self.ws = websocket.create_connection(
-                    ws_url,
-                    timeout=10,
-                    suppress_origin=True
-                )
+                self.ws = websocket.create_connection(ws_url, timeout=5)
                 
-                # Send authorization request
-                auth_request = {
-                    "authorize": api_token,
-                    "req_id": 1
-                }
-                
-                logger.info("🔐 Sending authorization...")
+                auth_request = {"authorize": api_token, "req_id": 1}
                 self.ws.send(json.dumps(auth_request))
+                self.ws.settimeout(5)
                 
-                # Wait for response
-                self.ws.settimeout(10)
                 response = self.ws.recv()
-                
-                if not response:
-                    return False, "No response from Deriv"
-                
                 data = json.loads(response)
                 
-                # Check for error
                 if "error" in data:
                     error_msg = data["error"].get("message", "Authentication failed")
-                    error_code = data["error"].get("code", "unknown")
-                    logger.error(f"❌ Auth failed: {error_code} - {error_msg}")
-                    return False, f"Authentication failed: {error_msg}"
+                    return False, f"Auth failed: {error_msg}"
                 
-                # Verify authorization
                 if "authorize" not in data:
-                    return False, "Invalid response from Deriv"
+                    return False, "Invalid response"
                 
                 self.account_info = data["authorize"]
                 self.connected = True
                 self.running = True
                 
-                # Extract account info
                 loginid = self.account_info.get("loginid", "Unknown")
-                email = self.account_info.get("email", "Unknown")
                 currency = self.account_info.get("currency", "USD")
-                is_virtual = self.account_info.get("is_virtual", False)
+                balance = self._get_balance_fast()
                 
-                # Get initial balance
-                balance = self._get_balance()
+                logger.info(f"✅ CONNECTED to {loginid} | Balance: {balance:.2f} {currency}")
                 
-                logger.info("="*60)
-                logger.info("✅ SUCCESSFULLY CONNECTED TO DERIV!")
-                logger.info(f"   Account: {loginid}")
-                logger.info(f"   Email: {email}")
-                logger.info(f"   Currency: {currency}")
-                logger.info(f"   Type: {'DEMO' if is_virtual else 'REAL'}")
-                logger.info(f"   Balance: {balance:.2f} {currency}")
-                logger.info("="*60)
-                
-                # Start background threads
-                self._start_background_threads()
+                self._start_price_thread()
                 
                 return True, f"Connected to {loginid} | Balance: {balance:.2f} {currency}"
                 
-        except websocket.WebSocketTimeoutException:
-            logger.error("❌ Connection timeout")
-            return False, "Connection timeout - please try again"
         except Exception as e:
             logger.error(f"❌ Connection error: {str(e)}")
             return False, f"Connection error: {str(e)}"
     
-    def _start_background_threads(self):
-        """Start background threads for price updates and heartbeats"""
-        # Price update thread
-        self.price_thread = threading.Thread(target=self._price_update_loop, daemon=True)
-        self.price_thread.start()
-        
-        # Heartbeat thread
-        self.heartbeat_thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
-        self.heartbeat_thread.start()
-        
-        logger.info("✅ Background threads started")
-    
-    def _price_update_loop(self):
-        """Background thread for real-time price updates"""
-        logger.info("📈 Starting price update loop...")
-        
-        while self.running and self.connected and self.ws:
-            try:
-                # Set timeout for receiving
-                self.ws.settimeout(1)
-                
+    def _start_price_thread(self):
+        """Start price update thread"""
+        def price_worker():
+            while self.running and self.connected and self.ws:
                 try:
+                    self.ws.settimeout(0.5)
                     response = self.ws.recv()
                     data = json.loads(response)
                     
-                    # Handle price updates
                     if "tick" in data:
                         tick = data["tick"]
                         symbol = tick.get("symbol")
@@ -299,159 +243,70 @@ class VerifiedDerivAPIClient:
                         
                         if symbol:
                             self.prices[symbol] = price
-                            self.price_history[symbol].append({
-                                'timestamp': datetime.now().isoformat(),
-                                'price': price
-                            })
+                            self.last_price_update[symbol] = time.time()
                             
-                            # Keep only last 100 prices
-                            if len(self.price_history[symbol]) > 100:
-                                self.price_history[symbol].pop(0)
-                            
-                            # Log first price update for each symbol
-                            if symbol not in self.subscriptions:
-                                logger.info(f"📊 {symbol}: {price}")
-                    
-                    elif "error" in data:
-                        logger.warning(f"⚠️ WebSocket error: {data['error']}")
-                    
                 except websocket.WebSocketTimeoutException:
-                    # No data received, continue
                     continue
-                    
-            except Exception as e:
-                logger.error(f"❌ Price loop error: {e}")
-                time.sleep(1)
+                except:
+                    time.sleep(0.1)
         
-        logger.info("⏹️ Price update loop stopped")
-    
-    def _heartbeat_loop(self):
-        """Send periodic heartbeats to keep connection alive"""
-        logger.info("❤️ Starting heartbeat loop...")
-        
-        while self.running and self.connected:
-            try:
-                time.sleep(30)  # Every 30 seconds
-                
-                if self.connected and self.ws:
-                    # Send ping
-                    ping_msg = {"ping": 1}
-                    self.ws.send(json.dumps(ping_msg))
-                    self.last_ping = time.time()
-                    
-            except Exception as e:
-                logger.error(f"❌ Heartbeat error: {e}")
-                time.sleep(5)
-        
-        logger.info("⏹️ Heartbeat loop stopped")
+        self.price_thread = threading.Thread(target=price_worker, daemon=True)
+        self.price_thread.start()
     
     def subscribe_price(self, symbol: str) -> bool:
-        """Subscribe to real-time price updates for a symbol"""
+        """FAST subscription"""
         try:
             if not self.connected:
-                logger.error("❌ Not connected to Deriv")
                 return False
             
             if symbol in self.subscriptions:
                 return True
             
-            subscribe_msg = {
-                "ticks": symbol,
-                "subscribe": 1,
-                "req_id": int(time.time())
-            }
-            
+            subscribe_msg = {"ticks": symbol, "subscribe": 1}
             self.ws.send(json.dumps(subscribe_msg))
             self.subscriptions.add(symbol)
+            time.sleep(0.3)  # Shorter wait
             
-            # Wait for subscription confirmation
-            time.sleep(0.5)
-            
-            logger.info(f"✅ Subscribed to {symbol}")
             return True
             
-        except Exception as e:
-            logger.error(f"❌ Subscribe error for {symbol}: {e}")
+        except:
             return False
     
-    def unsubscribe_price(self, symbol: str):
-        """Unsubscribe from price updates"""
-        try:
-            if symbol in self.subscriptions:
-                unsubscribe_msg = {
-                    "ticks": symbol,
-                    "unsubscribe": 1
-                }
-                self.ws.send(json.dumps(unsubscribe_msg))
-                self.subscriptions.remove(symbol)
-                logger.info(f"⏹️ Unsubscribed from {symbol}")
-        except:
-            pass
-    
     def get_price(self, symbol: str) -> Optional[float]:
-        """Get current market price - REAL DATA"""
-        try:
-            # Subscribe if not already subscribed
-            if symbol not in self.subscriptions:
-                self.subscribe_price(symbol)
-                time.sleep(0.5)  # Wait for subscription
-            
-            # Return cached price
-            if symbol in self.prices:
+        """ULTRA-FAST price getter"""
+        # Return cached price if recent (last 2 seconds)
+        if symbol in self.prices:
+            last_update = self.last_price_update.get(symbol, 0)
+            if time.time() - last_update < 2:
                 return self.prices[symbol]
-            
-            # If no cached price, request fresh price
-            price_msg = {
-                "ticks": symbol,
-                "req_id": int(time.time())
-            }
-            
-            self.ws.send(json.dumps(price_msg))
-            self.ws.settimeout(2)
-            
-            try:
-                response = self.ws.recv()
-                data = json.loads(response)
-                
-                if "tick" in data:
-                    price = float(data["tick"]["quote"])
-                    self.prices[symbol] = price
-                    return price
-            except websocket.WebSocketTimeoutException:
-                pass
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"❌ Get price error for {symbol}: {e}")
-            return None
+        
+        # Subscribe and get fresh
+        if self.subscribe_price(symbol):
+            time.sleep(0.2)
+            return self.prices.get(symbol)
+        
+        return None
     
-    def get_candles(self, symbol: str, timeframe: str = "5m", count: int = 100) -> Optional[pd.DataFrame]:
-        """Get historical candle data - REAL MARKET DATA"""
+    def get_candles(self, symbol: str, timeframe: str = "1m", count: int = 50) -> Optional[pd.DataFrame]:
+        """FAST candle data (using 1m by default)"""
         try:
             if not self.connected:
                 return None
             
-            # Map timeframe to granularity
-            timeframe_map = {
-                "1m": 60, "5m": 300, "15m": 900,
-                "30m": 1800, "1h": 3600, "4h": 14400
-            }
-            granularity = timeframe_map.get(timeframe, 300)
+            timeframe_map = {"1m": 60, "5m": 300}
+            granularity = timeframe_map.get(timeframe, 60)
             
-            # Request candles
-            candle_request = {
+            request = {
                 "ticks_history": symbol,
                 "adjust_start_time": 1,
                 "count": count,
                 "end": "latest",
                 "granularity": granularity,
-                "style": "candles",
-                "req_id": int(time.time())
+                "style": "candles"
             }
             
-            self.ws.send(json.dumps(candle_request))
-            self.ws.settimeout(5)
+            self.ws.send(json.dumps(request))
+            self.ws.settimeout(3)
             
             response = self.ws.recv()
             data = json.loads(response)
@@ -465,35 +320,26 @@ class VerifiedDerivAPIClient:
                     'low': [float(c.get('low', 0)) for c in candles],
                     'close': [float(c.get('close', 0)) for c in candles],
                 }
-                df = pd.DataFrame(df_data)
-                logger.info(f"📊 Retrieved {len(df)} candles for {symbol}")
-                return df
+                return pd.DataFrame(df_data)
             
             return None
             
-        except Exception as e:
-            logger.error(f"❌ Get candles error for {symbol}: {e}")
+        except:
             return None
     
     def place_trade(self, symbol: str, direction: str, amount: float) -> Tuple[bool, str]:
-        """EXECUTE REAL TRADE ON DERIV - VERIFIED"""
+        """FAST trade execution"""
         try:
             with self.connection_lock:
                 if not self.connected:
-                    return False, "Not connected to Deriv"
+                    return False, "Not connected"
                 
-                # Validate amount
                 if amount < Config.MIN_TRADE_AMOUNT:
                     amount = Config.MIN_TRADE_AMOUNT
                 
-                # Get current price for reference
-                current_price = self.get_price(symbol) or 0
-                
-                # Determine contract type
                 contract_type = "CALL" if direction.upper() in ["BUY", "UP", "CALL"] else "PUT"
                 
-                # Prepare trade parameters
-                trade_params = {
+                trade_request = {
                     "buy": amount,
                     "price": amount,
                     "parameters": {
@@ -503,395 +349,387 @@ class VerifiedDerivAPIClient:
                         "currency": self.account_info.get("currency", "USD"),
                         "duration": Config.TRADE_DURATION,
                         "duration_unit": "m",
-                        "symbol": symbol,
-                        "product_type": "basic"
-                    },
-                    "req_id": int(time.time())
+                        "symbol": symbol
+                    }
                 }
                 
-                logger.info(f"🚀 EXECUTING REAL TRADE ON DERIV:")
-                logger.info(f"   Symbol: {symbol}")
-                logger.info(f"   Direction: {direction}")
-                logger.info(f"   Amount: ${amount}")
-                logger.info(f"   Current Price: {current_price}")
+                logger.info(f"🚀 EXECUTING: {symbol} {direction} ${amount}")
                 
-                # Send trade request
-                self.ws.send(json.dumps(trade_params))
-                self.ws.settimeout(5)
+                self.ws.send(json.dumps(trade_request))
+                self.ws.settimeout(3)
                 
-                # Get response
                 response = self.ws.recv()
-                trade_data = json.loads(response)
+                data = json.loads(response)
                 
-                # Check for trade error
-                if "error" in trade_data:
-                    error_msg = trade_data["error"].get("message", "Trade failed")
-                    logger.error(f"❌ TRADE FAILED: {error_msg}")
+                if "error" in data:
+                    error_msg = data["error"].get("message", "Trade failed")
                     return False, f"Trade failed: {error_msg}"
                 
-                # Check for successful trade
-                if "buy" in trade_data:
-                    contract_id = trade_data["buy"].get("contract_id", "Unknown")
-                    payout = trade_data["buy"].get("payout", 0)
-                    
-                    # Update balance after trade
-                    new_balance = self._get_balance()
-                    
-                    logger.info(f"✅ TRADE SUCCESSFUL!")
-                    logger.info(f"   Contract ID: {contract_id}")
-                    logger.info(f"   Payout: ${payout}")
-                    logger.info(f"   New Balance: ${new_balance}")
-                    
+                if "buy" in data:
+                    contract_id = data["buy"].get("contract_id", "Unknown")
                     return True, contract_id
                 
-                return False, "Unknown trade error"
+                return False, "Unknown error"
                 
         except Exception as e:
-            logger.error(f"❌ Trade execution error: {str(e)}")
+            logger.error(f"❌ Trade error: {str(e)}")
             return False, f"Trade error: {str(e)}"
     
-    def _get_balance(self) -> float:
-        """Get current account balance"""
+    def _get_balance_fast(self) -> float:
+        """Fast balance check"""
         try:
             if not self.connected:
                 return 0.0
             
-            balance_msg = {"balance": 1, "req_id": int(time.time())}
-            self.ws.send(json.dumps(balance_msg))
-            self.ws.settimeout(3)
+            self.ws.send(json.dumps({"balance": 1}))
+            self.ws.settimeout(2)
             
             response = self.ws.recv()
             data = json.loads(response)
             
             if "balance" in data:
-                balance = float(data["balance"]["balance"])
-                # Update account info
-                if self.account_info:
-                    self.account_info["balance"] = balance
-                return balance
+                return float(data["balance"]["balance"])
             
             return 0.0
             
-        except Exception as e:
-            logger.error(f"❌ Balance error: {e}")
+        except:
             return 0.0
     
     def close(self):
-        """Close connection properly"""
+        """Close connection"""
         self.running = False
+        if self.ws:
+            self.ws.close()
         self.connected = False
-        
-        try:
-            if self.ws:
-                self.ws.close()
-                logger.info("✅ Connection closed")
-        except:
-            pass
 
-# ============ REAL SMC ANALYZER (PROVEN STRATEGY) ============
-class RealSMCAnalyzer:
-    """PROVEN SMC Strategy for Deriv Binary Options"""
+# ============ ULTRA-FREQUENT SMC ANALYZER ============
+class UltraFrequentSMCAnalyzer:
+    """DESIGNED FOR MAXIMUM TRADE FREQUENCY"""
     
     def __init__(self):
-        self.market_states = {}
-        self.analysis_history = defaultdict(deque)
-        logger.info("✅ SMC Analyzer initialized")
-    
-    def analyze(self, symbol: str, candles: pd.DataFrame, current_price: float) -> Dict:
-        """ANALYZE REAL MARKET DATA WITH SMC STRATEGY"""
+        self.strategy_weights = {
+            'liquidity_sweep': 1.0,      # Most frequent
+            'inside_bar': 0.9,           # Very frequent
+            'order_block': 0.8,          # Frequent
+            'structure_break': 0.7,      # Frequent
+            'fvg': 0.6,                  # Frequent
+            'rsi_divergence': 0.5,       # Moderate
+        }
+        self.recent_signals = defaultdict(deque)
+        
+    def analyze(self, symbol: str, df: pd.DataFrame, current_price: float) -> Dict:
+        """ULTRA-FAST analysis with multiple strategies"""
         try:
-            if candles is None or len(candles) < 20:
-                return self._neutral_signal(symbol, current_price)
+            if df is None or len(df) < 5:
+                return self._neutral_signal()
             
-            # Prepare data
-            df = self._prepare_data(candles)
+            # Prepare quick data
+            df = self._prepare_data_fast(df)
             
-            # Get market info
-            market_info = DERIV_MARKETS.get(symbol, {})
-            strategy_type = market_info.get('strategy', 'fast_smc')
+            # Run ALL strategies quickly
+            strategies = [
+                self._liquidity_sweep_strategy(df, symbol, current_price),
+                self._inside_bar_strategy(df, current_price),
+                self._order_block_strategy(df, current_price),
+                self._structure_break_strategy(df, current_price),
+                self._fvg_strategy(df, current_price),
+                self._rsi_divergence_strategy(df),
+            ]
             
-            if strategy_type == 'fast_smc':
-                return self._fast_smc_analysis(symbol, df, current_price)
-            else:
-                return self._neutral_signal(symbol, current_price)
-                
-        except Exception as e:
-            logger.error(f"❌ Analysis error for {symbol}: {e}")
-            return self._neutral_signal(symbol, current_price)
-    
-    def _fast_smc_analysis(self, symbol: str, df: pd.DataFrame, current_price: float) -> Dict:
-        """FAST SMC Strategy for Volatility/Crash/Boom indices"""
-        try:
-            signals = []
-            confidence = 50
+            # Find strongest signal
+            best_signal = None
+            best_confidence = 0
             
-            # 1. LIQUIDITY ANALYSIS (30 points)
-            liquidity_signal = self._analyze_liquidity(df, current_price)
-            if liquidity_signal:
-                signals.append(f"💧 {liquidity_signal['type']}")
-                confidence += 30 if liquidity_signal['direction'] == 'BUY' else -30
+            for strategy_result in strategies:
+                if strategy_result['signal'] != 'NEUTRAL':
+                    confidence = strategy_result['confidence']
+                    weight = self.strategy_weights.get(strategy_result['strategy'], 0.5)
+                    weighted_conf = confidence * weight
+                    
+                    if weighted_conf > best_confidence:
+                        best_confidence = weighted_conf
+                        best_signal = strategy_result
             
-            # 2. MARKET STRUCTURE (25 points)
-            structure_signal = self._analyze_structure(df)
-            if structure_signal:
-                signals.append(f"🏛️ {structure_signal}")
-                confidence += 25 if 'BULLISH' in structure_signal else -25
+            if best_signal and best_confidence >= 60:
+                # Check if similar signal recently
+                if not self._is_duplicate_signal(symbol, best_signal):
+                    self._record_signal(symbol, best_signal)
+                    return best_signal
             
-            # 3. FAIR VALUE GAPS (20 points)
-            fvg_signal = self._analyze_fvg(df, current_price)
-            if fvg_signal:
-                signals.append(f"⚡ {fvg_signal['type']} FVG")
-                confidence += 20 if fvg_signal['direction'] == 'BUY' else -20
-            
-            # 4. DIVERGENCE ANALYSIS (15 points)
-            divergence_signal = self._find_divergence(df)
-            if divergence_signal:
-                signals.append(f"↕️ {divergence_signal}")
-                confidence += 15 if 'BULLISH' in divergence_signal else -15
-            
-            # 5. VOLATILITY CHECK (10 points)
-            volatility = self._calculate_volatility(df)
-            if volatility > 50:  # High volatility
-                confidence += 10
-            
-            # Determine final signal
-            confidence = max(0, min(100, confidence))
-            
-            if confidence >= 70:
-                signal = 'BUY'
-                signal_strength = 'STRONG'
-            elif confidence >= 60:
-                signal = 'BUY'
-                signal_strength = 'MODERATE'
-            elif confidence <= 30:
-                signal = 'SELL'
-                signal_strength = 'STRONG'
-            elif confidence <= 40:
-                signal = 'SELL'
-                signal_strength = 'MODERATE'
-            else:
-                signal = 'NEUTRAL'
-                signal_strength = 'WEAK'
-            
-            # Store analysis
-            analysis = {
-                'confidence': int(confidence),
-                'signal': signal,
-                'strength': signal_strength,
-                'signals': signals,
-                'price': current_price,
-                'volatility': volatility,
-                'timestamp': datetime.now().isoformat(),
-                'strategy': 'FAST_SMC'
-            }
-            
-            # Store in history
-            self.analysis_history[symbol].append(analysis)
-            if len(self.analysis_history[symbol]) > 50:
-                self.analysis_history[symbol].popleft()
-            
-            return analysis
+            return self._neutral_signal()
             
         except Exception as e:
-            logger.error(f"❌ SMC analysis error: {e}")
-            return self._neutral_signal(symbol, current_price)
+            logger.error(f"❌ Analysis error: {e}")
+            return self._neutral_signal()
     
-    def _prepare_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Prepare data for analysis"""
-        if len(df) < 10:
+    def _prepare_data_fast(self, df: pd.DataFrame) -> pd.DataFrame:
+        """FAST data preparation"""
+        if len(df) < 2:
             return df
         
-        # Calculate indicators
+        # Quick indicators
         df['ema_10'] = df['close'].ewm(span=10, adjust=False).mean()
         df['ema_20'] = df['close'].ewm(span=20, adjust=False).mean()
-        df['ema_50'] = df['close'].ewm(span=50, adjust=False).mean()
         
-        # Calculate RSI
+        # Fast RSI
         delta = df['close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        gain = (delta.where(delta > 0, 0)).rolling(window=7).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=7).mean()
         rs = gain / loss
         df['rsi'] = 100 - (100 / (1 + rs))
         
-        # Calculate ATR for volatility
-        high_low = df['high'] - df['low']
-        high_close = abs(df['high'] - df['close'].shift())
-        low_close = abs(df['low'] - df['close'].shift())
-        tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
-        df['atr'] = tr.rolling(window=14).mean()
-        
         return df
     
-    def _analyze_liquidity(self, df: pd.DataFrame, current_price: float) -> Optional[Dict]:
-        """Analyze liquidity zones"""
-        try:
-            if len(df) < 15:
-                return None
+    def _liquidity_sweep_strategy(self, df: pd.DataFrame, symbol: str, current_price: float) -> Dict:
+        """MOST FREQUENT - Liquidity sweeps"""
+        if len(df) < 8:
+            return self._neutral_signal('liquidity_sweep')
+        
+        # Recent range (last 8 candles)
+        recent_high = df['high'].iloc[-8:].max()
+        recent_low = df['low'].iloc[-8:].min()
+        current = df.iloc[-1]
+        
+        # Bullish sweep (dip buy)
+        if (current['low'] <= recent_low and 
+            current['close'] > recent_low and
+            current['close'] > current['open']):
             
-            # Recent highs and lows
-            recent_high = df['high'].iloc[-15:].max()
-            recent_low = df['low'].iloc[-15:].min()
+            return {
+                'signal': 'BUY',
+                'confidence': 80,
+                'strategy': 'liquidity_sweep',
+                'signals': ['🔥 BULLISH SWEEP'],
+                'frequency': 'ULTRA_HIGH'
+            }
+        
+        # Bearish sweep (spike sell)
+        if (current['high'] >= recent_high and 
+            current['close'] < recent_high and
+            current['close'] < current['open']):
             
-            current_candle = df.iloc[-1]
+            return {
+                'signal': 'SELL',
+                'confidence': 80,
+                'strategy': 'liquidity_sweep',
+                'signals': ['💧 BEARISH SWEEP'],
+                'frequency': 'ULTRA_HIGH'
+            }
+        
+        return self._neutral_signal('liquidity_sweep')
+    
+    def _inside_bar_strategy(self, df: pd.DataFrame, current_price: float) -> Dict:
+        """VERY FREQUENT - Inside bar breakouts"""
+        if len(df) < 3:
+            return self._neutral_signal('inside_bar')
+        
+        prev = df.iloc[-2]
+        curr = df.iloc[-1]
+        
+        # Inside bar pattern
+        if (curr['high'] < prev['high'] and 
+            curr['low'] > prev['low']):
             
-            # Bullish liquidity grab (price dips below recent low then recovers)
-            if (current_candle['low'] <= recent_low and 
-                current_candle['close'] > recent_low and
-                current_candle['close'] > current_candle['open']):
-                
+            # Break above
+            if current_price > prev['high']:
                 return {
-                    'type': 'BULLISH_LIQUIDITY',
-                    'direction': 'BUY',
-                    'level': recent_low,
-                    'confidence': 85
+                    'signal': 'BUY',
+                    'confidence': 75,
+                    'strategy': 'inside_bar',
+                    'signals': ['📈 INSIDE BAR BULLISH'],
+                    'frequency': 'HIGH'
                 }
-            
-            # Bearish liquidity grab (price spikes above recent high then falls)
-            if (current_candle['high'] >= recent_high and 
-                current_candle['close'] < recent_high and
-                current_candle['close'] < current_candle['open']):
-                
+            # Break below
+            elif current_price < prev['low']:
                 return {
-                    'type': 'BEARISH_LIQUIDITY',
-                    'direction': 'SELL',
-                    'level': recent_high,
-                    'confidence': 85
+                    'signal': 'SELL',
+                    'confidence': 75,
+                    'strategy': 'inside_bar',
+                    'signals': ['📉 INSIDE BAR BEARISH'],
+                    'frequency': 'HIGH'
                 }
-            
-            return None
-            
-        except:
-            return None
+        
+        return self._neutral_signal('inside_bar')
     
-    def _analyze_structure(self, df: pd.DataFrame) -> Optional[str]:
-        """Analyze market structure"""
-        try:
-            if len(df) < 10:
-                return None
+    def _order_block_strategy(self, df: pd.DataFrame, current_price: float) -> Dict:
+        """FREQUENT - Order blocks"""
+        if len(df) < 4:
+            return self._neutral_signal('order_block')
+        
+        # Look for strong bearish candle
+        for i in range(len(df)-4, len(df)-1):
+            bear_candle = df.iloc[i]
+            bull_candle = df.iloc[i+1]
             
-            # Check for higher highs/higher lows (uptrend)
-            if (df['high'].iloc[-3] > df['high'].iloc[-4] and
-                df['low'].iloc[-3] > df['low'].iloc[-4] and
-                df['high'].iloc[-2] > df['high'].iloc[-3] and
-                df['low'].iloc[-2] > df['low'].iloc[-3]):
-                return "BULLISH_STRUCTURE"
+            # Bearish order block (strong red, weak green after)
+            bear_strength = abs(bear_candle['close'] - bear_candle['open'])
+            bear_range = bear_candle['high'] - bear_candle['low']
             
-            # Check for lower highs/lower lows (downtrend)
-            if (df['high'].iloc[-3] < df['high'].iloc[-4] and
-                df['low'].iloc[-3] < df['low'].iloc[-4] and
-                df['high'].iloc[-2] < df['high'].iloc[-3] and
-                df['low'].iloc[-2] < df['low'].iloc[-3]):
-                return "BEARISH_STRUCTURE"
-            
-            return None
-            
-        except:
-            return None
-    
-    def _analyze_fvg(self, df: pd.DataFrame, current_price: float) -> Optional[Dict]:
-        """Find Fair Value Gaps"""
-        try:
-            if len(df) < 3:
-                return None
-            
-            # Look at recent candles for FVG
-            for i in range(len(df)-4, len(df)-1):
-                candle1 = df.iloc[i]
-                candle2 = df.iloc[i+1]
-                candle3 = df.iloc[i+2]
+            if (bear_candle['close'] < bear_candle['open'] and 
+                bull_candle['close'] > bull_candle['open'] and
+                bear_strength > bear_range * 0.6):
                 
-                # Bullish FVG (candle1 high < candle3 low)
-                if candle1['high'] < candle3['low']:
-                    zone_low = candle1['high']
-                    zone_high = candle3['low']
-                    
-                    if zone_low <= current_price <= zone_high:
-                        return {
-                            'type': 'BULLISH_FVG',
-                            'direction': 'BUY',
-                            'zone': (zone_low, zone_high)
-                        }
+                ob_low = bear_candle['low']
+                ob_high = bear_candle['high']
                 
-                # Bearish FVG (candle1 low > candle3 high)
-                elif candle1['low'] > candle3['high']:
-                    zone_low = candle3['high']
-                    zone_high = candle1['low']
-                    
-                    if zone_low <= current_price <= zone_high:
-                        return {
-                            'type': 'BEARISH_FVG',
-                            'direction': 'SELL',
-                            'zone': (zone_low, zone_high)
-                        }
-            
-            return None
-            
-        except:
-            return None
+                # Price in order block zone
+                if ob_low <= current_price <= ob_high:
+                    return {
+                        'signal': 'BUY',
+                        'confidence': 70,
+                        'strategy': 'order_block',
+                        'signals': ['📦 BULLISH ORDER BLOCK'],
+                        'frequency': 'HIGH'
+                    }
+        
+        return self._neutral_signal('order_block')
     
-    def _find_divergence(self, df: pd.DataFrame) -> Optional[str]:
-        """Find RSI divergence"""
-        try:
-            if len(df) < 10 or 'rsi' not in df.columns:
-                return None
-            
-            # Get recent price and RSI data
-            recent_prices = df['close'].iloc[-5:].values
-            recent_rsi = df['rsi'].iloc[-5:].values
-            
-            # Bullish divergence (price makes lower low, RSI makes higher low)
-            if (recent_prices[-1] < recent_prices[-3] and 
-                recent_rsi[-1] > recent_rsi[-3]):
-                return "BULLISH_DIVERGENCE"
-            
-            # Bearish divergence (price makes higher high, RSI makes lower high)
-            if (recent_prices[-1] > recent_prices[-3] and 
-                recent_rsi[-1] < recent_rsi[-3]):
-                return "BEARISH_DIVERGENCE"
-            
-            return None
-            
-        except:
-            return None
+    def _structure_break_strategy(self, df: pd.DataFrame, current_price: float) -> Dict:
+        """FREQUENT - Structure breaks"""
+        if len(df) < 6:
+            return self._neutral_signal('structure_break')
+        
+        # Recent swing points
+        swing_high = df['high'].iloc[-6:-1].max()
+        swing_low = df['low'].iloc[-6:-1].min()
+        current = df.iloc[-1]
+        
+        # Bullish break
+        if current['close'] > swing_high and current['close'] > current['open']:
+            return {
+                'signal': 'BUY',
+                'confidence': 75,
+                'strategy': 'structure_break',
+                'signals': ['🚀 BULLISH BREAKOUT'],
+                'frequency': 'HIGH'
+            }
+        
+        # Bearish break
+        if current['close'] < swing_low and current['close'] < current['open']:
+            return {
+                'signal': 'SELL',
+                'confidence': 75,
+                'strategy': 'structure_break',
+                'signals': ['📉 BEARISH BREAKDOWN'],
+                'frequency': 'HIGH'
+            }
+        
+        return self._neutral_signal('structure_break')
     
-    def _calculate_volatility(self, df: pd.DataFrame) -> float:
-        """Calculate market volatility"""
-        try:
-            if len(df) < 2:
-                return 30.0
+    def _fvg_strategy(self, df: pd.DataFrame, current_price: float) -> Dict:
+        """FREQUENT - Fair Value Gaps"""
+        if len(df) < 3:
+            return self._neutral_signal('fvg')
+        
+        c1, c2, c3 = df.iloc[-3], df.iloc[-2], df.iloc[-1]
+        
+        # Bullish FVG
+        if c1['high'] < c3['low']:
+            fvg_low = c1['high']
+            fvg_high = c3['low']
             
-            returns = df['close'].pct_change().dropna()
-            volatility = returns.std() * np.sqrt(252) * 100
+            if fvg_low <= current_price <= fvg_high:
+                return {
+                    'signal': 'BUY',
+                    'confidence': 65,
+                    'strategy': 'fvg',
+                    'signals': ['⚡ BULLISH FVG'],
+                    'frequency': 'MEDIUM'
+                }
+        
+        # Bearish FVG
+        if c1['low'] > c3['high']:
+            fvg_low = c3['high']
+            fvg_high = c1['low']
             
-            return float(volatility) if not np.isnan(volatility) else 30.0
-            
-        except:
-            return 30.0
+            if fvg_low <= current_price <= fvg_high:
+                return {
+                    'signal': 'SELL',
+                    'confidence': 65,
+                    'strategy': 'fvg',
+                    'signals': ['⚡ BEARISH FVG'],
+                    'frequency': 'MEDIUM'
+                }
+        
+        return self._neutral_signal('fvg')
     
-    def _neutral_signal(self, symbol: str, current_price: float) -> Dict:
-        """Return neutral signal"""
+    def _rsi_divergence_strategy(self, df: pd.DataFrame) -> Dict:
+        """MODERATE - RSI Divergence"""
+        if len(df) < 10 or 'rsi' not in df.columns:
+            return self._neutral_signal('rsi_divergence')
+        
+        prices = df['close'].iloc[-5:].values
+        rsi_values = df['rsi'].iloc[-5:].values
+        
+        # Bullish divergence
+        if (prices[-1] < prices[-3] and 
+            rsi_values[-1] > rsi_values[-3] and
+            rsi_values[-1] < 35):
+            
+            return {
+                'signal': 'BUY',
+                'confidence': 70,
+                'strategy': 'rsi_divergence',
+                'signals': ['↗️ BULLISH DIVERGENCE'],
+                'frequency': 'MEDIUM'
+            }
+        
+        # Bearish divergence
+        if (prices[-1] > prices[-3] and 
+            rsi_values[-1] < rsi_values[-3] and
+            rsi_values[-1] > 65):
+            
+            return {
+                'signal': 'SELL',
+                'confidence': 70,
+                'strategy': 'rsi_divergence',
+                'signals': ['↘️ BEARISH DIVERGENCE'],
+                'frequency': 'MEDIUM'
+            }
+        
+        return self._neutral_signal('rsi_divergence')
+    
+    def _is_duplicate_signal(self, symbol: str, signal: Dict) -> bool:
+        """Prevent duplicate signals"""
+        recent = self.recent_signals.get(symbol, deque(maxlen=5))
+        
+        for old_signal in recent:
+            if (old_signal['signal'] == signal['signal'] and 
+                old_signal['strategy'] == signal['strategy']):
+                # Check if within 1 minute
+                if 'timestamp' in old_signal:
+                    old_time = datetime.fromisoformat(old_signal['timestamp'].replace('Z', '+00:00'))
+                    if (datetime.now() - old_time).total_seconds() < 60:
+                        return True
+        
+        return False
+    
+    def _record_signal(self, symbol: str, signal: Dict):
+        """Record signal"""
+        signal['timestamp'] = datetime.now().isoformat()
+        self.recent_signals[symbol].append(signal)
+    
+    def _neutral_signal(self, strategy: str = 'neutral') -> Dict:
+        """Neutral signal"""
         return {
-            'confidence': 0,
             'signal': 'NEUTRAL',
-            'strength': 'NONE',
+            'confidence': 0,
+            'strategy': strategy,
             'signals': [],
-            'price': current_price,
-            'volatility': 30.0,
-            'timestamp': datetime.now().isoformat(),
-            'strategy': 'NEUTRAL'
+            'frequency': 'NONE'
         }
 
-# ============ TRADING ENGINE WITH CONCURRENT TRADE CONTROL ============
-class TradingEngine:
-    """Trading engine with concurrent trade control"""
+# ============ HIGH-FREQUENCY TRADING ENGINE ============
+class HighFrequencyTradingEngine:
+    """ENGINE OPTIMIZED FOR MAXIMUM FREQUENCY"""
     
     def __init__(self, user_id: str):
         self.user_id = user_id
         self.api_client = None
-        self.analyzer = RealSMCAnalyzer()
+        self.analyzer = UltraFrequentSMCAnalyzer()
         self.running = False
         self.trades = []
-        self.active_trades = []  # Track active trades for concurrency control
+        self.active_trades = []
         self.stats = {
             'total_trades': 0,
             'winning_trades': 0,
@@ -902,62 +740,53 @@ class TradingEngine:
             'last_reset': datetime.now()
         }
         self.settings = {
-            'enabled_markets': ['volatility_75_index', 'volatility_100_index', 'crash_500_index'],
-            'min_confidence': 65,
-            'trade_amount': 1.0,
-            'max_concurrent_trades': 3,  # YOU CONTROL THIS
-            'max_daily_trades': 50,
-            'max_hourly_trades': 15,
-            'dry_run': True,  # SAFETY FIRST
-            'risk_level': 1.0,
-            'trade_duration': 5,
+            'enabled_markets': ['volatility_75_index', 'volatility_100_index', 'crash_500_index', 'boom_500_index'],
+            'min_confidence': 60,
+            'trade_amount': 0.50,
+            'max_concurrent_trades': 5,
+            'max_daily_trades': 200,
+            'max_hourly_trades': 50,
+            'dry_run': True,
+            'trade_duration': 3,
+            'use_1m_candles': True,
+            'aggressive_mode': True,
+            'scan_interval': 5,
         }
         self.thread = None
-        self.last_trade_time = {}
         self.market_cooldowns = {}
         
     def connect_with_token(self, api_token: str) -> Tuple[bool, str]:
         """Connect to Deriv"""
         try:
-            logger.info(f"🔗 Connecting user {self.user_id} to Deriv...")
-            
-            self.api_client = VerifiedDerivAPIClient()
+            self.api_client = FastDerivAPIClient()
             success, message = self.api_client.connect_with_token(api_token)
             
             if success:
-                # Subscribe to enabled markets
+                # Subscribe to all enabled markets
                 for symbol in self.settings['enabled_markets']:
                     self.api_client.subscribe_price(symbol)
                     time.sleep(0.1)
-                
-                logger.info(f"✅ User {self.user_id} connected successfully")
             
             return success, message
             
         except Exception as e:
-            logger.error(f"❌ Connection error for user {self.user_id}: {e}")
+            logger.error(f"❌ Connection error: {e}")
             return False, str(e)
     
     def update_settings(self, settings: Dict):
-        """Update trading settings"""
+        """Update settings"""
         old_markets = set(self.settings.get('enabled_markets', []))
         new_markets = set(settings.get('enabled_markets', old_markets))
         
-        # Subscribe to new markets
         if self.api_client and self.api_client.connected:
             for symbol in new_markets - old_markets:
                 self.api_client.subscribe_price(symbol)
                 time.sleep(0.1)
-            
-            # Unsubscribe from removed markets
-            for symbol in old_markets - new_markets:
-                self.api_client.unsubscribe_price(symbol)
         
         self.settings.update(settings)
-        logger.info(f"⚙️ Settings updated for user {self.user_id}")
     
     def start_trading(self):
-        """Start automated trading"""
+        """Start ULTRA-FREQUENT trading"""
         if self.running:
             return False, "Already running"
         
@@ -965,201 +794,196 @@ class TradingEngine:
             return False, "Not connected to Deriv"
         
         self.running = True
-        
-        # Start trading thread
-        self.thread = threading.Thread(target=self._trading_loop, daemon=True)
+        self.thread = threading.Thread(target=self._ultra_frequent_loop, daemon=True)
         self.thread.start()
         
         mode = "DRY RUN" if self.settings['dry_run'] else "REAL TRADING"
-        logger.info(f"💰 {mode} started for user {self.user_id}")
+        logger.info(f"💰 {mode} started (ULTRA-FREQUENT)")
         
         return True, f"{mode} started!"
     
     def stop_trading(self):
-        """Stop automated trading"""
+        """Stop trading"""
         self.running = False
-        logger.info(f"⏹️ Trading stopped for user {self.user_id}")
     
-    def _trading_loop(self):
-        """Main trading loop with concurrent trade control"""
-        logger.info(f"🔥 Trading loop started for user {self.user_id}")
+    def _ultra_frequent_loop(self):
+        """ULTRA-FAST trading loop"""
+        logger.info(f"🔥 ULTRA-FREQUENT loop started")
+        
+        scan_interval = self.settings.get('scan_interval', 5)
         
         while self.running:
             try:
-                # Check if we can trade (concurrency control)
+                start_time = time.time()
+                
+                # Check if can trade
                 if not self._can_trade():
-                    time.sleep(5)
+                    time.sleep(1)
                     continue
                 
-                # Process each enabled market
+                # Process each market
                 for symbol in self.settings['enabled_markets']:
                     if not self.running:
                         break
                     
                     try:
-                        # Check market cooldown
+                        # Skip if in cooldown
                         if not self._check_cooldown(symbol):
                             continue
                         
-                        # Get REAL market data
+                        # Get price (ULTRA-FAST)
                         current_price = self.api_client.get_price(symbol)
                         if not current_price:
-                            logger.debug(f"⚠️ No price for {symbol}, skipping")
                             continue
                         
-                        # Get historical candles for analysis
-                        candles = self.api_client.get_candles(symbol, "5m", 100)
-                        if candles is None or len(candles) < 20:
+                        # Get candles (1m for speed)
+                        timeframe = "1m" if self.settings.get('use_1m_candles', True) else "5m"
+                        candles = self.api_client.get_candles(symbol, timeframe, 30)
+                        if candles is None or len(candles) < 5:
                             continue
                         
-                        # Analyze market with SMC strategy
+                        # ULTRA-FAST analysis
                         analysis = self.analyzer.analyze(symbol, candles, current_price)
                         
-                        # Check if we should trade based on analysis
+                        # Execute if signal
                         if (analysis['signal'] != 'NEUTRAL' and 
                             analysis['confidence'] >= self.settings['min_confidence']):
                             
-                            direction = analysis['signal']
-                            confidence = analysis['confidence']
-                            
-                            logger.info(f"📊 {symbol}: {direction} signal ({confidence}% confidence)")
-                            
-                            # Execute trade based on dry_run setting
-                            if self.settings['dry_run']:
-                                # DRY RUN - Simulate trade
-                                logger.info(f"📝 DRY RUN: Would trade {symbol} {direction} ${self.settings['trade_amount']}")
-                                
-                                self._record_trade({
-                                    'symbol': symbol,
-                                    'direction': direction,
-                                    'amount': self.settings['trade_amount'],
-                                    'confidence': confidence,
-                                    'dry_run': True,
-                                    'timestamp': datetime.now().isoformat(),
-                                    'analysis': analysis
-                                })
-                                
-                            else:
-                                # REAL TRADE EXECUTION
-                                logger.info(f"🚀 EXECUTING REAL TRADE: {symbol} {direction} ${self.settings['trade_amount']}")
-                                
-                                success, trade_id = self.api_client.place_trade(
-                                    symbol, direction, self.settings['trade_amount']
-                                )
-                                
-                                if success:
-                                    logger.info(f"✅ TRADE SUCCESS: {trade_id}")
-                                    self._record_trade({
-                                        'symbol': symbol,
-                                        'direction': direction,
-                                        'amount': self.settings['trade_amount'],
-                                        'trade_id': trade_id,
-                                        'confidence': confidence,
-                                        'dry_run': False,
-                                        'timestamp': datetime.now().isoformat(),
-                                        'analysis': analysis
-                                    })
-                                    
-                                    # Add to active trades for concurrency control
-                                    self.active_trades.append({
-                                        'symbol': symbol,
-                                        'trade_id': trade_id,
-                                        'timestamp': datetime.now()
-                                    })
-                                    
-                                    # Update cooldown
-                                    self._update_cooldown(symbol)
-                                    
-                                    # Remove old active trades (older than 5 minutes)
-                                    self._cleanup_active_trades()
-                                else:
-                                    logger.error(f"❌ TRADE FAILED: {trade_id}")
-                        
-                        time.sleep(1)  # Small delay between market checks
+                            self._execute_trade(symbol, analysis)
                         
                     except Exception as e:
-                        logger.error(f"❌ Error processing {symbol}: {e}")
                         continue
                 
-                time.sleep(10)  # Wait before next market scan
+                # Calculate sleep time to maintain exact interval
+                elapsed = time.time() - start_time
+                sleep_time = max(0.1, scan_interval - elapsed)
+                time.sleep(sleep_time)
                 
             except Exception as e:
-                logger.error(f"❌ Trading loop error: {e}")
-                time.sleep(30)  # Wait longer on major errors
+                logger.error(f"❌ Loop error: {e}")
+                time.sleep(10)
+    
+    def _execute_trade(self, symbol: str, analysis: Dict):
+        """Execute trade"""
+        direction = analysis['signal']
+        confidence = analysis['confidence']
+        
+        if self.settings['dry_run']:
+            # DRY RUN
+            logger.info(f"📝 DRY RUN: {symbol} {direction} ${self.settings['trade_amount']} ({confidence}%)")
+            
+            self._record_trade({
+                'symbol': symbol,
+                'direction': direction,
+                'amount': self.settings['trade_amount'],
+                'confidence': confidence,
+                'dry_run': True,
+                'timestamp': datetime.now().isoformat(),
+                'analysis': analysis
+            })
+            
+        else:
+            # REAL TRADE
+            logger.info(f"🚀 REAL TRADE: {symbol} {direction} ${self.settings['trade_amount']}")
+            
+            success, trade_id = self.api_client.place_trade(
+                symbol, direction, self.settings['trade_amount']
+            )
+            
+            if success:
+                logger.info(f"✅ SUCCESS: {trade_id}")
+                
+                self._record_trade({
+                    'symbol': symbol,
+                    'direction': direction,
+                    'amount': self.settings['trade_amount'],
+                    'trade_id': trade_id,
+                    'confidence': confidence,
+                    'dry_run': False,
+                    'timestamp': datetime.now().isoformat(),
+                    'analysis': analysis
+                })
+                
+                # Add to active trades
+                self.active_trades.append({
+                    'symbol': symbol,
+                    'trade_id': trade_id,
+                    'timestamp': datetime.now()
+                })
+                
+                # Set cooldown
+                self._set_cooldown(symbol)
+                
+                # Cleanup old active trades
+                self._cleanup_active_trades()
+                
+            else:
+                logger.error(f"❌ FAILED: {trade_id}")
     
     def _can_trade(self) -> bool:
-        """Check if trading is allowed (CONCURRENCY CONTROL)"""
+        """Check trading conditions"""
         try:
-            # 1. Check max concurrent trades (YOUR CONTROL)
-            active_count = len(self.active_trades)
-            max_concurrent = self.settings['max_concurrent_trades']
-            
-            if active_count >= max_concurrent:
-                logger.debug(f"⏳ Max concurrent trades reached ({active_count}/{max_concurrent})")
+            # Max concurrent trades
+            if len(self.active_trades) >= self.settings['max_concurrent_trades']:
                 return False
             
-            # 2. Reset daily/hourly counters if needed
+            # Reset counters
             now = datetime.now()
             if now.date() > self.stats['last_reset'].date():
                 self.stats['daily_trades'] = 0
                 self.stats['hourly_trades'] = 0
                 self.stats['last_reset'] = now
             
-            # 3. Check daily limit
+            # Daily limit
             if self.stats['daily_trades'] >= self.settings['max_daily_trades']:
-                logger.debug(f"⏳ Daily trade limit reached")
                 return False
             
-            # 4. Check hourly limit
+            # Hourly limit
             if self.stats['hourly_trades'] >= self.settings['max_hourly_trades']:
-                logger.debug(f"⏳ Hourly trade limit reached")
                 return False
             
             return True
             
-        except Exception as e:
-            logger.error(f"❌ Can trade check error: {e}")
+        except:
             return False
     
     def _cleanup_active_trades(self):
-        """Remove old active trades (older than trade duration)"""
+        """Cleanup old active trades"""
         try:
             now = datetime.now()
             self.active_trades = [
                 trade for trade in self.active_trades
-                if (now - trade['timestamp']).total_seconds() < (self.settings['trade_duration'] * 60 + 60)
+                if (now - trade['timestamp']).total_seconds() < (self.settings['trade_duration'] * 60 + 30)
             ]
         except:
             pass
     
     def _check_cooldown(self, symbol: str) -> bool:
-        """Check if market is in cooldown"""
+        """Check market cooldown"""
         if symbol not in self.market_cooldowns:
             return True
         
-        cooldown_end = self.market_cooldowns[symbol]
-        if datetime.now() >= cooldown_end:
+        if datetime.now() >= self.market_cooldowns[symbol]:
             del self.market_cooldowns[symbol]
             return True
         
         return False
     
-    def _update_cooldown(self, symbol: str):
-        """Update cooldown for a market"""
-        cooldown_minutes = 2  # 2 minutes cooldown between trades on same market
-        self.market_cooldowns[symbol] = datetime.now() + timedelta(minutes=cooldown_minutes)
+    def _set_cooldown(self, symbol: str):
+        """Set market cooldown"""
+        cooldown = 1 if self.settings.get('aggressive_mode', False) else 2
+        self.market_cooldowns[symbol] = datetime.now() + timedelta(minutes=cooldown)
     
     def _record_trade(self, trade_data: Dict):
-        """Record trade in history"""
+        """Record trade"""
         trade_data['id'] = len(self.trades) + 1
         self.trades.append(trade_data)
         
-        # Update statistics
         self.stats['total_trades'] += 1
         self.stats['daily_trades'] += 1
         self.stats['hourly_trades'] += 1
         
-        # Reset hourly trades counter after 1 hour
+        # Reset hourly counter
         def reset_hourly():
             time.sleep(3600)
             self.stats['hourly_trades'] = max(0, self.stats['hourly_trades'] - 1)
@@ -1167,26 +991,20 @@ class TradingEngine:
         threading.Thread(target=reset_hourly, daemon=True).start()
     
     def get_status(self) -> Dict:
-        """Get current trading status"""
-        balance = self.api_client._get_balance() if self.api_client else 0.0
+        """Get status"""
+        balance = self.api_client._get_balance_fast() if self.api_client else 0.0
         connected = self.api_client.connected if self.api_client else False
         
-        # Get REAL market data for enabled markets
+        # Market data
         market_data = {}
         if self.api_client and self.api_client.connected:
             for symbol in self.settings.get('enabled_markets', []):
                 try:
                     price = self.api_client.get_price(symbol)
                     if price:
-                        # Get latest analysis from memory
-                        latest_analysis = None
-                        if symbol in self.analyzer.analysis_history and self.analyzer.analysis_history[symbol]:
-                            latest_analysis = self.analyzer.analysis_history[symbol][-1]
-                        
                         market_data[symbol] = {
                             'name': DERIV_MARKETS.get(symbol, {}).get('name', symbol),
                             'price': price,
-                            'analysis': latest_analysis,
                             'category': DERIV_MARKETS.get(symbol, {}).get('category', 'Unknown')
                         }
                 except:
@@ -1200,7 +1018,6 @@ class TradingEngine:
             'settings': self.settings,
             'recent_trades': self.trades[-20:][::-1] if self.trades else [],
             'active_trades': len(self.active_trades),
-            'max_concurrent_trades': self.settings['max_concurrent_trades'],
             'market_data': market_data
         }
 
@@ -1209,7 +1026,7 @@ app = Flask(__name__)
 CORS(app)
 app.secret_key = Config.SECRET_KEY
 
-# Session config for production
+# Session config
 app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
@@ -1238,14 +1055,12 @@ def api_login():
             session['username'] = username
             session.permanent = True
             
-            # Initialize trading engine for user
             if username not in trading_engines:
                 user_data = user_db.get_user(username)
-                engine = TradingEngine(user_id=user_data['user_id'])
+                engine = HighFrequencyTradingEngine(user_id=user_data['user_id'])
                 engine.update_settings(user_data.get('settings', {}))
                 trading_engines[username] = engine
             
-            logger.info(f"✅ User {username} logged in")
             return jsonify({'success': True, 'message': 'Login successful'})
         else:
             return jsonify({'success': False, 'message': message})
@@ -1288,7 +1103,6 @@ def api_logout():
                 del trading_engines[username]
             
             session.clear()
-            logger.info(f"✅ User {username} logged out")
         
         return jsonify({'success': True, 'message': 'Logged out successfully'})
         
@@ -1309,7 +1123,6 @@ def api_connect_token():
         if not api_token:
             return jsonify({'success': False, 'message': 'API token required'})
         
-        # Stop existing trading and close connection
         if username in trading_engines:
             engine = trading_engines[username]
             engine.stop_trading()
@@ -1318,19 +1131,15 @@ def api_connect_token():
             engine.api_client = None
         else:
             user_data = user_db.get_user(username)
-            engine = TradingEngine(user_id=user_data['user_id'])
+            engine = HighFrequencyTradingEngine(user_id=user_data['user_id'])
             engine.update_settings(user_data.get('settings', {}))
             trading_engines[username] = engine
         
-        # Connect with new token
         engine = trading_engines[username]
         success, message = engine.connect_with_token(api_token)
         
         if success:
-            return jsonify({
-                'success': True,
-                'message': message
-            })
+            return jsonify({'success': True, 'message': message})
         else:
             return jsonify({'success': False, 'message': message})
             
@@ -1407,12 +1216,10 @@ def api_update_settings():
         data = request.json
         settings = data.get('settings', {})
         
-        # Validate trade amount
-        if 'trade_amount' in settings:
-            if settings['trade_amount'] < Config.MIN_TRADE_AMOUNT:
-                return jsonify({'success': False, 'message': f'Minimum trade amount is ${Config.MIN_TRADE_AMOUNT}'})
+        # Validate
+        if 'trade_amount' in settings and settings['trade_amount'] < Config.MIN_TRADE_AMOUNT:
+            return jsonify({'success': False, 'message': f'Minimum trade amount is ${Config.MIN_TRADE_AMOUNT}'})
         
-        # Validate max concurrent trades
         if 'max_concurrent_trades' in settings:
             max_trades = settings['max_concurrent_trades']
             if not isinstance(max_trades, int) or max_trades < 1 or max_trades > 10:
@@ -1422,7 +1229,6 @@ def api_update_settings():
         if engine:
             engine.update_settings(settings)
         
-        # Update user settings in database
         user_data = user_db.get_user(username)
         if user_data:
             user_data['settings'].update(settings)
@@ -1444,7 +1250,7 @@ def api_place_trade():
         data = request.json
         symbol = data.get('symbol')
         direction = data.get('direction')
-        amount = float(data.get('amount', 1.0))
+        amount = float(data.get('amount', 0.50))
         
         if not symbol or not direction:
             return jsonify({'success': False, 'message': 'Symbol and direction required'})
@@ -1456,7 +1262,7 @@ def api_place_trade():
         if not engine or not engine.api_client or not engine.api_client.connected:
             return jsonify({'success': False, 'message': 'Not connected to Deriv'})
         
-        # Check if dry run
+        # Dry run check
         if engine.settings.get('dry_run', True):
             engine._record_trade({
                 'symbol': symbol,
@@ -1473,7 +1279,7 @@ def api_place_trade():
                 'dry_run': True
             })
         
-        # Execute REAL trade
+        # Real trade
         success, trade_id = engine.api_client.place_trade(symbol, direction, amount)
         
         if success:
@@ -1489,7 +1295,7 @@ def api_place_trade():
             
             return jsonify({
                 'success': True,
-                'message': f'✅ REAL TRADE placed successfully: {trade_id}',
+                'message': f'✅ REAL TRADE: {trade_id}',
                 'trade_id': trade_id
             })
         else:
@@ -1516,14 +1322,14 @@ def api_analyze_market():
         if not engine or not engine.api_client:
             return jsonify({'success': False, 'message': 'Not connected'})
         
-        # Get REAL market data
-        candles = engine.api_client.get_candles(symbol, "5m", 100)
+        # Get market data
+        candles = engine.api_client.get_candles(symbol, "1m", 30)
         current_price = engine.api_client.get_price(symbol)
         
         if candles is None or current_price is None:
             return jsonify({'success': False, 'message': 'Failed to get market data'})
         
-        # Analyze with SMC strategy
+        # Analyze
         analysis = engine.analyzer.analyze(symbol, candles, current_price)
         
         return jsonify({
@@ -1545,35 +1351,41 @@ def api_check_session():
             return jsonify({'success': True, 'username': username})
         else:
             return jsonify({'success': False, 'username': None})
-    except Exception as e:
+    except:
         return jsonify({'success': False, 'username': None})
 
 # ============ MAIN ROUTES ============
 @app.route('/')
 def index():
-    """Serve the web interface"""
-    # HTML template would be here (same as previous versions)
-    # For production, we'll serve a simple interface
+    """Serve web interface"""
     return """
     <!DOCTYPE html>
     <html>
     <head>
-        <title>🎯 Karanka V8 Trading Bot</title>
+        <title>🚀 Karanka V8 - Ultra-Frequent Trading Bot</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
             body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #0a0a0a; color: #FFD700; }
             .container { max-width: 800px; margin: 0 auto; }
             h1 { color: #FFD700; text-align: center; }
             .status { background: #1a1a1a; padding: 20px; border-radius: 10px; margin: 20px 0; }
-            .btn { background: #FFD700; color: #000; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+            .btn { background: #FFD700; color: #000; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+            .danger { background: #ff4444; color: white; }
+            .success { background: #00C851; color: white; }
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>🎯 Karanka V8 Trading Bot</h1>
+            <h1>🚀 Karanka V8 - Ultra-Frequent Trading Bot</h1>
             <div class="status">
-                <p>API is running successfully!</p>
-                <p>Connect using API calls to /api endpoints.</p>
+                <p>🚀 <strong>ULTRA-FREQUENT SMC STRATEGIES ENABLED</strong></p>
+                <p>📈 Designed for maximum trade frequency (50-100+ trades/hour possible)</p>
+                <p>💰 Connect with your Deriv API token to start trading</p>
+                <p>⚡ Use API endpoints for full control</p>
+            </div>
+            <div>
+                <button class="btn" onclick="window.location.href='/api/status'">Check Status</button>
+                <button class="btn success" onclick="window.location.href='https://documenter.getpostman.com/view/6316436/2sA3XLjK6H'">API Documentation</button>
             </div>
         </div>
     </body>
@@ -1582,13 +1394,12 @@ def index():
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'service': 'karanka-trading-bot',
+        'service': 'karanka-ultra-frequent-bot',
         'timestamp': datetime.now().isoformat(),
-        'users_count': len(user_db.users),
-        'active_engines': len(trading_engines)
+        'version': 'V8-ULTRA-FREQUENT',
+        'strategies': ['Liquidity Sweep', 'Inside Bar', 'Order Block', 'Structure Break', 'FVG', 'RSI Divergence']
     })
 
 # ============ ERROR HANDLERS ============
@@ -1606,23 +1417,24 @@ if __name__ == '__main__':
     port = Config.PORT
     
     print("\n" + "="*80)
-    print("🎯 KARANKA V8 - DERIV REAL-TIME TRADING BOT (PRODUCTION)")
+    print("🚀 KARANKA V8 - ULTRA-FREQUENT SMC TRADING BOT")
     print("="*80)
-    print(f"🚀 Starting on port: {port}")
-    print(f"📊 Available markets: {len(DERIV_MARKETS)}")
-    print("⚡ Strategy: FAST SMC (Liquidity + Divergence + Structure)")
-    print("💰 Trading modes: Dry Run (default) | Real Trading")
-    print("🎯 Concurrent trade control: YES (configurable)")
+    print("⚡ STRATEGIES ENABLED:")
+    print("   1. Liquidity Sweep (MOST FREQUENT)")
+    print("   2. Inside Bar Breakout (VERY FREQUENT)")
+    print("   3. Order Block (FREQUENT)")
+    print("   4. Structure Break (FREQUENT)")
+    print("   5. Fair Value Gap (FREQUENT)")
+    print("   6. RSI Divergence (MODERATE)")
     print("="*80)
-    print("\n📱 HOW TO USE:")
-    print("1. Register/Login via API")
-    print("2. Connect with Deriv API Token")
-    print("3. Configure settings (markets, amount, max concurrent trades)")
-    print("4. Start trading (starts in DRY RUN for safety)")
-    print("5. Turn off 'Dry Run' in Settings for REAL trading")
+    print(f"📊 Markets: {len(DERIV_MARKETS)}")
+    print(f"💰 Min Trade: ${Config.MIN_TRADE_AMOUNT}")
+    print(f"⏱️ Trade Duration: {Config.TRADE_DURATION} minutes")
+    print(f"🎯 Max Concurrent Trades: {Config.MAX_CONCURRENT_TRADES}")
     print("="*80)
-    print("⚠️  IMPORTANT: Bot starts in DRY RUN mode for safety!")
-    print("    Toggle 'Dry Run' in Settings for REAL trading")
+    print("⚠️  WARNING: This bot is configured for ULTRA-FREQUENT trading")
+    print("    Expected: 50-100+ trades/hour possible")
+    print("    Start in DRY RUN mode to test frequency")
     print("="*80)
     
     app.run(host='0.0.0.0', port=port, debug=Config.DEBUG, threaded=True)
