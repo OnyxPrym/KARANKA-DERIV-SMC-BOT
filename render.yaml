@@ -1,15 +1,15 @@
 services:
   - type: web
-    name: karanka-24-7-bot
+    name: karanka-bot
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
-      - key: SECRET_KEY
-        generateValue: true
       - key: PORT
         value: 10000
-    plan: free
-    autoDeploy: true
-    healthCheckPath: /health
-    healthCheckTimeout: 30s
+      - key: SECRET_KEY
+        generateValue: true
+    disk:
+      name: data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
