@@ -3,11 +3,13 @@ services:
     name: karanka-deriv-bot
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --workers=2 --worker-class=sync --timeout=120 --bind=0.0.0.0:$PORT
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
     envVars:
+      - key: PORT
+        value: 10000
       - key: PYTHON_VERSION
-        value: 3.10.10
-      - key: WEB_CONCURRENCY
-        value: 2
-    healthCheckPath: /health
-    autoDeploy: true
+        value: 3.10.12
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FLASK_ENV
+        value: production
