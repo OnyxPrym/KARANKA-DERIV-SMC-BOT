@@ -1,13 +1,15 @@
 services:
   - type: web
-    name: karanka-deriv-bot
+    name: deriv-trading-bot
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 4 --threads 2 --timeout 120 app:app
+    startCommand: gunicorn app:app
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.9.0
       - key: PORT
         value: 10000
-    healthCheckPath: /health
-    autoDeploy: true
+      - key: SECRET_KEY
+        generateValue: true
+    disk:
+      name: data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
