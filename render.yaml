@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: karanka-trading-bot
+    name: karanka-24-7-bot
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
@@ -11,3 +11,5 @@ services:
         value: 10000
     plan: free
     autoDeploy: true
+    healthCheckPath: /health
+    healthCheckTimeout: 30s
