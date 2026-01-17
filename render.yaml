@@ -1,15 +1,13 @@
 services:
   - type: web
-    name: karanka-bot
+    name: karanka-trading-bot
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
       - key: PORT
         value: 10000
-      - key: SECRET_KEY
-        generateValue: true
-    disk:
-      name: data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1
+      - key: DERIV_API_TOKEN
+        sync: false
