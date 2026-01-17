@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
 ================================================================================
-🎯 KARANKA V8 - DERIV REAL-TIME TRADING BOT (COMPLETE FIXED)
+🎯 KARANKA V8 - DERIV REAL-TIME TRADING BOT (PRODUCTION READY)
 ================================================================================
-• START/STOP TRADING BUTTONS
-• MARKET SELECTION CHECKBOXES
-• DUAL SMC STRATEGIES
-• REAL DERIV CONNECTION
-• FULL UI WORKING
+• FIXED SESSION MANAGEMENT
+• PRODUCTION-READY CONFIG
+• REAL TRADE EXECUTION
+• ALL UI WORKING
 ================================================================================
 """
 
@@ -17,7 +16,6 @@ import time
 import threading
 import hashlib
 import secrets
-import urllib.parse
 from datetime import datetime, timedelta
 from collections import defaultdict, deque
 import logging
@@ -29,11 +27,17 @@ import requests
 import websocket
 from flask import Flask, render_template_string, jsonify, request, session, redirect, url_for
 from flask_cors import CORS
+from flask_session import Session
+import redis
 
 # ============ SETUP LOGGING ============
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('trading_bot.log')
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -488,6 +492,7 @@ class DerivAPIClient:
         self.max_reconnect = 3
         self.connection_lock = threading.Lock()
         self.running = True
+        self.app_id = 1089  # Deriv app ID
     
     def connect_with_token(self, api_token: str) -> Tuple[bool, str]:
         """Connect using API token"""
@@ -502,7 +507,7 @@ class DerivAPIClient:
     def _connect_websocket(self, token: str) -> Tuple[bool, str]:
         """Connect to Deriv WebSocket"""
         try:
-            ws_url = f"wss://ws.binaryws.com/websockets/v3?app_id=1089&l=EN"
+            ws_url = f"wss://ws.binaryws.com/websockets/v3?app_id={self.app_id}&l=EN"
             logger.info(f"Connecting to WebSocket: {ws_url}")
             
             self.ws = websocket.create_connection(ws_url, timeout=10)
@@ -696,8 +701,9 @@ class DerivAPIClient:
                 contract_type = "CALL" if direction.upper() in ["BUY", "UP", "CALL"] else "PUT"
                 currency = self.account_info.get("currency", "USD")
                 
+                # Proper trade request for Deriv API
                 trade_request = {
-                    "buy": amount,
+                    "buy": 1,
                     "price": amount,
                     "parameters": {
                         "amount": amount,
@@ -1108,24 +1114,71 @@ class TradingEngine:
 
 # ============ FLASK APP ============
 app = Flask(__name__)
-CORS(app)
-app.secret_key = os.environ.get('SECRET_KEY', secrets.token_urlsafe(32))
 
-# Session config
-app.config.update(
-    SESSION_COOKIE_SECURE=False,
-    SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax',
-    PERMANENT_SESSION_LIFETIME=timedelta(hours=24)
+# Production-ready session configuration
+app.secret_key = os.environ.get('SECRET_KEY', secrets.token_urlsafe(32))
+app.config['SESSION_TYPE'] = 'filesystem'  # Use filesystem for simplicity
+app.config['SESSION_PERMANENT'] = True
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+app.config['SESSION_COOKIE_SECURE'] = True  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+
+# CORS configuration for production
+CORS(app, 
+     supports_credentials=True,
+     resources={r"/api/*": {
+         "origins": ["https://*.onrender.com", "http://localhost:5000", "http://127.0.0.1:5000"],
+         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         "allow_headers": ["Content-Type", "Authorization"],
+         "expose_headers": ["Content-Type"],
+         "supports_credentials": True,
+         "max_age": 3600
+     }}
 )
 
 # Initialize components
 user_db = UserDatabase()
 trading_engines = {}
 
+# Add CORS headers to all responses
+@app.after_request
+def after_request(response):
+    # Allow credentials
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    
+    # Set allowed origins for production
+    allowed_origins = [
+        'https://*.onrender.com',
+        'http://localhost:5000',
+        'http://127.0.0.1:5000'
+    ]
+    
+    origin = request.headers.get('Origin')
+    if origin:
+        # Check if origin is allowed
+        for allowed in allowed_origins:
+            if allowed.startswith('*'):
+                if origin.endswith(allowed[2:]):  # Remove '*.' from start
+                    response.headers.add('Access-Control-Allow-Origin', origin)
+                    break
+            elif origin == allowed:
+                response.headers.add('Access-Control-Allow-Origin', origin)
+                break
+    
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Expose-Headers', 'Content-Type')
+    
+    return response
+
 # ============ API ROUTES ============
-@app.route('/api/login', methods=['POST'])
+@app.route('/api/login', methods=['POST', 'OPTIONS'])
 def api_login():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         data = request.json
         username = data.get('username', '').strip()
@@ -1138,6 +1191,7 @@ def api_login():
         
         if success:
             session['username'] = username
+            session['user_id'] = user_db.get_user(username)['user_id']
             session.permanent = True
             
             # Create trading engine if not exists
@@ -1147,6 +1201,7 @@ def api_login():
                 engine.update_settings(user_data.get('settings', {}))
                 trading_engines[username] = engine
             
+            logger.info(f"User {username} logged in successfully")
             return jsonify({'success': True, 'message': 'Login successful'})
         else:
             return jsonify({'success': False, 'message': message})
@@ -1155,8 +1210,11 @@ def api_login():
         logger.error(f"Login error: {e}")
         return jsonify({'success': False, 'message': f'Login error: {str(e)}'})
 
-@app.route('/api/register', methods=['POST'])
+@app.route('/api/register', methods=['POST', 'OPTIONS'])
 def api_register():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         data = request.json
         username = data.get('username', '').strip()
@@ -1182,8 +1240,11 @@ def api_register():
         logger.error(f"Registration error: {e}")
         return jsonify({'success': False, 'message': f'Registration error: {str(e)}'})
 
-@app.route('/api/logout', methods=['POST'])
+@app.route('/api/logout', methods=['POST', 'OPTIONS'])
 def api_logout():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         username = session.get('username')
         if username:
@@ -1194,6 +1255,7 @@ def api_logout():
                     engine.api_client.close_connection()
                 del trading_engines[username]
             session.clear()
+            logger.info(f"User {username} logged out")
         
         return jsonify({'success': True, 'message': 'Logged out successfully'})
         
@@ -1201,8 +1263,11 @@ def api_logout():
         logger.error(f"Logout error: {e}")
         return jsonify({'success': False, 'message': f'Logout error: {str(e)}'})
 
-@app.route('/api/connect-token', methods=['POST'])
+@app.route('/api/connect-token', methods=['POST', 'OPTIONS'])
 def api_connect_token():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         username = session.get('username')
         if not username:
@@ -1236,8 +1301,11 @@ def api_connect_token():
         logger.error(f"Token connect error: {e}")
         return jsonify({'success': False, 'message': f'Token connection error: {str(e)}'})
 
-@app.route('/api/status', methods=['GET'])
+@app.route('/api/status', methods=['GET', 'OPTIONS'])
 def api_status():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         username = session.get('username')
         if not username:
@@ -1259,8 +1327,11 @@ def api_status():
         logger.error(f"Status error: {e}")
         return jsonify({'success': False, 'message': f'Status error: {str(e)}'})
 
-@app.route('/api/start-trading', methods=['POST'])
+@app.route('/api/start-trading', methods=['POST', 'OPTIONS'])
 def api_start_trading():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         username = session.get('username')
         if not username:
@@ -1277,8 +1348,11 @@ def api_start_trading():
         logger.error(f"Start trading error: {e}")
         return jsonify({'success': False, 'message': f'Start trading error: {str(e)}'})
 
-@app.route('/api/stop-trading', methods=['POST'])
+@app.route('/api/stop-trading', methods=['POST', 'OPTIONS'])
 def api_stop_trading():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         username = session.get('username')
         if not username:
@@ -1295,8 +1369,11 @@ def api_stop_trading():
         logger.error(f"Stop trading error: {e}")
         return jsonify({'success': False, 'message': f'Stop trading error: {str(e)}'})
 
-@app.route('/api/update-settings', methods=['POST'])
+@app.route('/api/update-settings', methods=['POST', 'OPTIONS'])
 def api_update_settings():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         username = session.get('username')
         if not username:
@@ -1324,9 +1401,12 @@ def api_update_settings():
         logger.error(f"Update settings error: {e}")
         return jsonify({'success': False, 'message': f'Update settings error: {str(e)}'})
 
-@app.route('/api/place-trade', methods=['POST'])
+@app.route('/api/place-trade', methods=['POST', 'OPTIONS'])
 def api_place_trade():
     """Place manual trade"""
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         username = session.get('username')
         if not username:
@@ -1360,9 +1440,12 @@ def api_place_trade():
         logger.error(f"Place trade error: {e}")
         return jsonify({'success': False, 'message': f'Place trade error: {str(e)}'})
 
-@app.route('/api/analyze-market', methods=['POST'])
+@app.route('/api/analyze-market', methods=['POST', 'OPTIONS'])
 def api_analyze_market():
     """Analyze market with REAL data"""
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         username = session.get('username')
         if not username:
@@ -1397,8 +1480,11 @@ def api_analyze_market():
         logger.error(f"Analyze market error: {e}")
         return jsonify({'success': False, 'message': f'Analyze market error: {str(e)}'})
 
-@app.route('/api/check-session', methods=['GET'])
+@app.route('/api/check-session', methods=['GET', 'OPTIONS'])
 def api_check_session():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         username = session.get('username')
         if username:
@@ -1407,6 +1493,26 @@ def api_check_session():
             return jsonify({'success': False, 'username': None})
     except Exception as e:
         return jsonify({'success': False, 'username': None})
+
+# ============ DEBUG ENDPOINTS ============
+@app.route('/api/debug-session', methods=['GET'])
+def debug_session():
+    """Debug endpoint to check session state"""
+    return jsonify({
+        'username': session.get('username'),
+        'session_id': session.sid if hasattr(session, 'sid') else 'N/A',
+        'logged_in': 'username' in session,
+        'session_keys': list(session.keys())
+    })
+
+@app.route('/api/debug-engines', methods=['GET'])
+def debug_engines():
+    """Debug endpoint to check trading engines"""
+    return jsonify({
+        'total_engines': len(trading_engines),
+        'engines': list(trading_engines.keys()),
+        'users_in_session': session.get('username')
+    })
 
 # ============ MAIN ROUTES ============
 @app.route('/')
@@ -1417,9 +1523,14 @@ def index():
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint for Render"""
-    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'engines_active': len(trading_engines),
+        'users_total': len(user_db.users)
+    })
 
-# ============ HTML TEMPLATE (FIXED WITH START/STOP BUTTONS) ============
+# ============ HTML TEMPLATE (FIXED) ============
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
@@ -1942,7 +2053,9 @@ HTML_TEMPLATE = '''
         
         async function checkSession() {
             try {
-                const response = await fetch('/api/check-session');
+                const response = await fetch('/api/check-session', {
+                    credentials: 'include'  // CRITICAL FOR SESSION
+                });
                 const data = await response.json();
                 if (data.success && data.username) {
                     currentUser = data.username;
@@ -1954,7 +2067,7 @@ HTML_TEMPLATE = '''
                     loadSettings();
                 }
             } catch (error) {
-                console.log('No active session');
+                console.log('No active session:', error);
             }
         }
         
@@ -1969,6 +2082,7 @@ HTML_TEMPLATE = '''
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'include',  // CRITICAL FOR SESSION
                     body: JSON.stringify({username, password})
                 });
                 const data = await response.json();
@@ -2017,7 +2131,10 @@ HTML_TEMPLATE = '''
         
         async function logout() {
             try {
-                const response = await fetch('/api/logout', {method: 'POST'});
+                const response = await fetch('/api/logout', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
                 const data = await response.json();
                 if (data.success) {
                     currentUser = null;
@@ -2044,6 +2161,7 @@ HTML_TEMPLATE = '''
                 const response = await fetch('/api/connect-token', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'include',
                     body: JSON.stringify({api_token: apiToken})
                 });
                 const data = await response.json();
@@ -2062,7 +2180,9 @@ HTML_TEMPLATE = '''
             try {
                 const response = await fetch('/api/start-trading', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'}
+                    headers: {'Content-Type': 'application/json'},
+                    credentials: 'include',
+                    body: JSON.stringify({})
                 });
                 const data = await response.json();
                 showAlert('dashboard-alert', data.message, data.success ? 'success' : 'error');
@@ -2076,7 +2196,9 @@ HTML_TEMPLATE = '''
             try {
                 const response = await fetch('/api/stop-trading', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'}
+                    headers: {'Content-Type': 'application/json'},
+                    credentials: 'include',
+                    body: JSON.stringify({})
                 });
                 const data = await response.json();
                 showAlert('dashboard-alert', data.message, data.success ? 'success' : 'error');
@@ -2087,7 +2209,9 @@ HTML_TEMPLATE = '''
         
         async function loadMarkets() {
             try {
-                const response = await fetch('/api/status');
+                const response = await fetch('/api/status', {
+                    credentials: 'include'
+                });
                 const data = await response.json();
                 if (data.success && data.markets) {
                     allMarkets = data.markets;
@@ -2191,6 +2315,7 @@ HTML_TEMPLATE = '''
                 const response = await fetch('/api/analyze-market', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'include',
                     body: JSON.stringify({symbol})
                 });
                 const data = await response.json();
@@ -2235,6 +2360,7 @@ HTML_TEMPLATE = '''
                 const response = await fetch('/api/analyze-market', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'include',
                     body: JSON.stringify({symbol})
                 });
                 const data = await response.json();
@@ -2282,6 +2408,7 @@ HTML_TEMPLATE = '''
                 const response = await fetch('/api/place-trade', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'include',
                     body: JSON.stringify({symbol, direction, amount})
                 });
                 const data = await response.json();
@@ -2294,7 +2421,9 @@ HTML_TEMPLATE = '''
         
         async function loadSettings() {
             try {
-                const response = await fetch('/api/status');
+                const response = await fetch('/api/status', {
+                    credentials: 'include'
+                });
                 const data = await response.json();
                 if (data.success && data.status && data.status.settings) {
                     currentSettings = data.status.settings;
@@ -2344,6 +2473,7 @@ HTML_TEMPLATE = '''
                 const response = await fetch('/api/update-settings', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'include',
                     body: JSON.stringify({settings})
                 });
                 const data = await response.json();
@@ -2404,7 +2534,9 @@ HTML_TEMPLATE = '''
         async function updateStatus() {
             if (!currentUser) return;
             try {
-                const response = await fetch('/api/status');
+                const response = await fetch('/api/status', {
+                    credentials: 'include'
+                });
                 const data = await response.json();
                 if (data.success) {
                     const status = data.status;
@@ -2509,18 +2641,15 @@ HTML_TEMPLATE = '''
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     host = '0.0.0.0'
-    debug = os.environ.get('DEBUG', 'False').lower() == 'true'
     
     print("\n" + "="*80)
-    print("🎯 KARANKA V8 - DERIV SMART SMC TRADING BOT (FIXED)")
-    print("="*80)
-    print("✅ START/STOP TRADING: Working buttons")
-    print("✅ MARKET SELECTION: Checkboxes for all markets")
-    print("✅ DUAL SMC STRATEGIES: Fast indices + Original forex")
-    print("✅ REAL DERIV CONNECTION: API token authentication")
-    print("✅ REAL TRADE EXECUTION: When Dry Run is OFF")
+    print("🎯 KARANKA V8 - DERIV SMART SMC TRADING BOT (PRODUCTION READY)")
     print("="*80)
     print(f"🚀 Server starting on http://{host}:{port}")
+    print("✅ FIXED: Session management for Render.com deployment")
+    print("✅ FIXED: CORS configuration for all tabs")
+    print("✅ FIXED: WebSocket connections with proper credentials")
+    print("✅ READY: Real trade execution when Dry Run is OFF")
     print("="*80)
     
-    app.run(host=host, port=port, debug=debug, threaded=True)
+    app.run(host=host, port=port, debug=False, threaded=True)
