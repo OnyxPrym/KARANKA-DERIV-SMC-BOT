@@ -1,24 +1,19 @@
 services:
   - type: web
-    name: karanka-deriv
+    name: real-deriv-trading-bot
     env: python
-    region: singapore
-    plan: free
+    region: frankfurt  # or singapore, oregon, etc.
+    plan: free  # or starter, standard for production
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT app:app
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
     envVars:
+      - key: PORT
+        value: 10000
+      - key: PYTHON_VERSION
+        value: 3.10.12
       - key: SECRET_KEY
         generateValue: true
-      - key: DATABASE_URL
-        fromDatabase:
-          name: karanka_db
-          property: connectionString
-    healthCheckPath: /
+      - key: FLASK_ENV
+        value: production
+    healthCheckPath: /health
     autoDeploy: true
-    numInstances: 1
-
-databases:
-  - name: karanka_db
-    plan: free
-    databaseName: karanka
-    user: karanka_user
