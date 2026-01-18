@@ -1,10 +1,13 @@
 services:
   - type: web
-    name: karanka-ultra-bot
+    name: karanka-deriv-bot
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 4 --threads 2 --timeout 120 app:app
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
       - key: PORT
         value: 10000
-    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
