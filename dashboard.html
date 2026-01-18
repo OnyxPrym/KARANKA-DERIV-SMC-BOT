@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Bot Control Card -->
+<div class="card">
+    <div class="card-header">
+        <h3><i class="fas fa-robot"></i> Trading Bot Control</h3>
+        <div class="status-badge {% if bot_running %}status-running{% else %}status-stopped{% endif %}">
+            <div class="status-dot {% if bot_running %}running{% else %}stopped{% endif %}"></div>
+            {% if bot_running %}RUNNING{% else %}STOPPED{% endif %}
+        </div>
+    </div>
+    
+    <div class="btn-group">
+        <button onclick="startBot()" class="btn btn-success" {% if bot_running %}disabled{% endif %}>
+            <i class="fas fa-play"></i> Start Bot
+        </button>
+        <button onclick="stopBot()" class="btn btn-danger" {% if not bot_running %}disabled{% endif %}>
+            <i class="fas fa-stop"></i> Stop Bot
+        </button>
+        <button onclick="updateTrades()" class="btn btn-outline">
+            <i class="fas fa-sync"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Stats Grid -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">${{ "%.2f"|format(balance) }}</div>
+        <div class="stat-label">Balance</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ trades|length }}</div>
+        <div class="stat-label">Total Trades</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">0.0%</div>
+        <div class="stat-label">Win Rate</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">$0.00</div>
+        <div class="stat-label">Today's P/L</div>
+    </div>
+</div>
+
+<!-- Recent Trades -->
+<div class="card">
+    <div class="card-header">
+        <h3><i class="fas fa-history"></i> Recent Trades</h3>
+        <span class="text-muted">Last 10 trades</span>
+    </div>
+    
+    <div id="tradesContainer">
+        {% if trades %}
+            {% for trade in trades %}
+            <div class="trade-card {{ trade.direction|lower if trade.direction else 'neutral' }}">
+                <div class="trade-header">
+                    <div class="trade-symbol">{{ trade.symbol or 'N/A' }}</div>
+                    {% if trade.direction %}
+                    <div class="trade-direction {{ trade.direction|lower }}">{{ trade.direction }}</div>
+                    {% endif %}
+                </div>
+                <div class="trade-details">
+                    <div class="trade-detail">
+                        <strong>Amount:</strong> ${{ "%.2f"|format(trade.amount or 0) }}
+                    </div>
+                    <div class="trade-detail">
+                        <strong>Entry:</strong> {{ "%.5f"|format(trade.entry or 0) if trade.entry else 'N/A' }}
+                    </div>
+                    <div class="trade-detail">
+                        <strong>Time:</strong> {{ trade.created_at.strftime('%H:%M') }}
+                    </div>
+                    <div class="trade-detail">
+                        <strong>Status:</strong> <span class="text-{% if trade.status == 'won' %}success{% elif trade.status == 'lost' %}danger{% else %}warning{% endif %}">
+                            {{ trade.status or 'N/A' }}
+                        </span>
+                    </div>
+                </div>
+                {% if trade.reason %}
+                <div class="mt-1">
+                    <small class="text-muted"><i class="fas fa-info-circle"></i> {{ trade.reason }}</small>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center p-4">
+                <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No trades yet. Start the bot to begin trading!</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card">
+    <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+    <div class="row">
+        <div class="col">
+            <a href="/settings" class="btn btn-outline btn-block">
+                <i class="fas fa-cog"></i> Settings
+            </a>
+        </div>
+        <div class="col">
+            <button onclick="testStrategy()" class="btn btn-outline btn-block">
+                <i class="fas fa-flask"></i> Test Strategy
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function startBot() {
+        showLoading();
+        try {
+            const response = await fetch('/api/start_bot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+            hideLoading();
+            alert(data.message);
+            if (data.success) {
+                location.reload();
+            }
+        } catch (error) {
+            hideLoading();
+            alert('Error starting bot: ' + error.message);
+        }
+    }
+    
+    async function stopBot() {
+        if (confirm('Are you sure you want to stop the trading bot?')) {
+            showLoading();
+            try {
+                const response = await fetch('/api/stop_bot', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                hideLoading();
+                alert(data.message);
+                if (data.success) {
+                    location.reload();
+                }
+            } catch (error) {
+                hideLoading();
+                alert('Error stopping bot: ' + error.message);
+            }
+        }
+    }
+    
+    async function updateTrades() {
+        showLoading();
+        try {
+            const response = await fetch('/api/trades');
+            const trades = await response.json();
+            
+            const container =
