@@ -1,59 +1,128 @@
-# 🎯 Karanka Deriv Trading Bot V7
+# 🚀 REAL Deriv Trading Bot - PRODUCTION READY
 
-🚀 **Mobile WebApp for Automated Deriv Trading with SMC Strategies**
+## 🎯 **WHAT THIS IS:**
+A **complete, production-ready** trading bot for **REAL Deriv trading** with **Smart Money Concepts (SMC)** strategy.
 
-## 🌟 Features
+## ⚡ **KEY FEATURES:**
 
-✅ **REAL Deriv Trading** - Connects to your actual Deriv account  
-✅ **Live Market Data** - Real-time prices from Deriv  
-✅ **4 SMC Strategies** - Liquidity Grab, FVG, Order Block, BOS  
-✅ **Mobile Responsive** - Works perfectly on phone/tablet  
-✅ **User Authentication** - Secure login/registration  
-✅ **Risk Management** - Control trades per day, concurrent trades, amounts  
-✅ **Real-time Updates** - WebSocket notifications  
-✅ **Deploy on Render.com** - One-click deployment  
+### **REAL Trading (No Testing Mode):**
+- ✅ **Real Deriv WebSocket connection**
+- ✅ **Real trade execution** with actual money
+- ✅ **25+ pre-configured markets** (Forex, Indices, Crypto, Stocks)
+- ✅ **Professional SMC trading strategy**
+- ✅ **Risk management** with stop-loss and daily limits
 
-## 📱 Mobile App Features
+### **Trading Strategies:**
+1. **Volatility Indices (R_ series, Crash/Boom):**
+   - Market structure analysis
+   - Order block detection
+   - Fair value gaps
+   - Liquidity analysis
 
-- 📊 Dashboard with real-time stats
-- ⚙️ Complete settings control
-- 🔔 Push notifications
-- 📱 Add to homescreen (PWA)
-- 📈 Live trade updates
-- 🎯 Strategy performance tracking
+2. **Forex/Crypto:**
+   - Higher timeframe structure
+   - Supply/demand zones
+   - Breaker blocks
+   - Mitigation blocks
+   - Momentum analysis
 
-## 🚀 Quick Deploy on Render.com
+## 🚀 **DEPLOYMENT INSTRUCTIONS:**
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+### **Step 1: Get Your Deriv API Token**
+1. Go to **https://app.deriv.com/account/api-token**
+2. Generate a **REAL account token** for live trading
+3. Generate a **DEMO account token** for practice
+4. **IMPORTANT:** Keep your tokens secure!
 
-### Deployment Steps:
+### **Step 2: Deploy to Render.com**
+1. Create account at **render.com**
+2. Create **New Web Service**
+3. Connect your **GitHub repository**
+4. Use these settings:
+   - **Name:** `real-deriv-trading-bot`
+   - **Environment:** `Python`
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120`
+   - **Plan:** `Free` (upgrade for 24/7 uptime)
 
-1. **Click "Deploy to Render" button above**
-2. **Connect your GitHub repository**
-3. **Name your service:** `karanka-deriv`
-4. **Wait for build to complete** (5-10 minutes)
-5. **Add PostgreSQL database** (auto-provisioned)
-6. **Set environment variables:**
-   - `SECRET_KEY`: Click "Generate"
-   - `DATABASE_URL`: Auto-filled from database
-7. **Access your bot:** `https://your-service.onrender.com`
+### **Step 3: Configure Environment Variables**
+In Render dashboard, add:
+- `SECRET_KEY` (auto-generated)
+- `PORT` = `10000`
+- `FLASK_ENV` = `production`
 
-## 🔧 Local Development
+### **Step 4: Access Your Bot**
+1. Open your Render URL (e.g., `https://your-bot.onrender.com`)
+2. Register new account
+3. Go to **Connection tab**
+4. Paste your **Deriv API token**
+5. Select **"REAL Account"** for live trading
 
-```bash
-# Clone repository
-git clone https://github.com/yourusername/karanka-deriv.git
-cd karanka-deriv
+## ⚠️ **IMPORTANT WARNINGS:**
 
-# Install dependencies
-pip install -r requirements.txt
+### **BEFORE LIVE TRADING:**
+1. **ALWAYS test with DEMO account first**
+2. **Start with SMALL amounts** ($1-5)
+3. **Monitor the bot** for first 24 hours
+4. **Set proper risk limits** in Settings tab
+5. **Never risk more than you can afford to lose**
 
-# Create .env file
-echo "SECRET_KEY=your-secret-key" > .env
-echo "DATABASE_URL=sqlite:///karanka.db" >> .env
+### **Risk Management Settings:**
+- **Max Daily Loss:** $100 (adjust based on your capital)
+- **Min Confidence:** 70% (higher = fewer but better trades)
+- **Trade Amount:** Start with $5
+- **Max Concurrent Trades:** 3
+- **Cooldown:** 10 minutes between trades on same symbol
 
-# Run the app
-python app.py
+## 📊 **MARKETS AVAILABLE:**
 
-# Open in browser
-# http://localhost:5000
+### **Forex (7 pairs):**
+- EUR/USD, GBP/USD, USD/JPY, AUD/USD
+- USD/CAD, USD/CHF, NZD/USD
+
+### **Volatility Indices (6):**
+- R_25, R_50, R_75, R_100, R_150, R_200
+
+### **Crash/Boom (6):**
+- CRASH_300, CRASH_500, CRASH_1000
+- BOOM_300, BOOM_500, BOOM_1000
+
+### **Cryptocurrencies (4):**
+- BTC/USD, ETH/USD, LTC/USD, XRP/USD
+
+### **Stocks (5):**
+- Apple, Tesla, Amazon, Microsoft, Alphabet
+
+## 🔧 **TROUBLESHOOTING:**
+
+### **If connection fails:**
+1. Check your **API token** is valid
+2. Ensure **Render.com** allows outbound WebSocket connections
+3. Check **bot logs** in Render dashboard
+4. Try switching between **WebSocket endpoints**
+
+### **If trades not executing:**
+1. Check **Dry Run** is OFF in Settings
+2. Verify **account has sufficient balance**
+3. Check **Deriv platform** for any restrictions
+4. Ensure **market is open** for trading
+
+## 📞 **SUPPORT:**
+
+### **For issues:**
+1. Check **bot logs** at `deriv_trading_bot.log`
+2. Monitor **Render.com logs** in dashboard
+3. Verify **Deriv account** status
+4. Check **market trading hours**
+
+### **Emergency Stop:**
+1. Click **"Stop Trading"** button
+2. **Disconnect** from Deriv
+3. **Logout** from bot
+4. **Contact support** if needed
+
+## ⚖️ **LEGAL DISCLAIMER:**
+
+**Trading involves substantial risk of loss.** This bot is for educational purposes. Past performance does not guarantee future results. You are solely responsible for your trading decisions and financial outcomes.
+
+**USE AT YOUR OWN RISK.**
