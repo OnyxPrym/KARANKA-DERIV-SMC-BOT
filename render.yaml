@@ -1,9 +1,10 @@
 services:
   - type: web
-    name: karanka-trading-bot
+    name: karanka-ultra-bot
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     envVars:
       - key: PORT
         value: 10000
+    plan: free
