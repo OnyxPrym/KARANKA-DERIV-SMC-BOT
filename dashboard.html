@@ -161,4 +161,67 @@
             const response = await fetch('/api/trades');
             const trades = await response.json();
             
-            const container =
+            const container = document.getElementById('tradesContainer');
+            if (trades.length > 0) {
+                container.innerHTML = trades.map(trade => `
+                    <div class="trade-card ${trade.direction.toLowerCase()}">
+                        <div class="trade-header">
+                            <div class="trade-symbol">${trade.symbol}</div>
+                            <div class="trade-direction ${trade.direction.toLowerCase()}">${trade.direction}</div>
+                        </div>
+                        <div class="trade-details">
+                            <div class="trade-detail">
+                                <strong>Amount:</strong> $${trade.amount.toFixed(2)}
+                            </div>
+                            <div class="trade-detail">
+                                <strong>Entry:</strong> ${trade.entry.toFixed(5)}
+                            </div>
+                            <div class="trade-detail">
+                                <strong>Time:</strong> ${trade.time}
+                            </div>
+                            <div class="trade-detail">
+                                <strong>Status:</strong> <span class="text-${trade.status === 'won' ? 'success' : trade.status === 'lost' ? 'danger' : 'warning'}">
+                                    ${trade.status}
+                                </span>
+                            </div>
+                        </div>
+                        ${trade.reason ? `<div class="mt-1"><small class="text-muted"><i class="fas fa-info-circle"></i> ${trade.reason}</small></div>` : ''}
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = `
+                    <div class="text-center p-4">
+                        <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No trades yet. Start the bot to begin trading!</p>
+                    </div>
+                `;
+            }
+            hideLoading();
+        } catch (error) {
+            hideLoading();
+            alert('Error updating trades: ' + error.message);
+        }
+    }
+    
+    function testStrategy() {
+        alert('Strategy testing feature coming soon!');
+    }
+    
+    function showLoading() {
+        const overlay = document.createElement('div');
+        overlay.className = 'loading-overlay';
+        overlay.innerHTML = `
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Loading...</div>
+        `;
+        document.body.appendChild(overlay);
+    }
+    
+    function hideLoading() {
+        const overlay = document.querySelector('.loading-overlay');
+        if (overlay) {
+            overlay.remove();
+        }
+    }
+</script>
+{% endblock %}
